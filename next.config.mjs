@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  // Hide the Next.js development indicator (black N)
+  devIndicators: false,
+
+  // Existing Tailwind CSS configuration
   turbopack: {
     rules: {
       "*.css": {
