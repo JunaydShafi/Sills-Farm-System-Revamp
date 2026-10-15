@@ -207,14 +207,12 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Placeholder administrator display */}
-        <div className="flex items-center justify-center gap-3 rounded-lg border border-green-900 bg-emerald-600 px-4 py-4 text-black">
-          <div className="text-center">
+       {/* Placeholder administrator display */}
+        <div className="flex items-center justify-center rounded-lg border border-green-900 bg-emerald-600 px-4 py-4 text-black">
+        <div className="text-center">
             <p className="font-bold">Edward M. Sills</p>
             <p className="text-sm">Administrator</p>
-          </div>
-
-          <ChevronDown size={18} />
+        </div>
         </div>
       </header>
 
