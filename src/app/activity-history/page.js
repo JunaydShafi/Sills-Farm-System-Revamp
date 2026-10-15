@@ -1,48 +1,58 @@
 
 import Link from "next/link";
 import { History, ArrowLeft, Clock } from "lucide-react";
+import FarmLayout from "../FarmLayout";
 
 export default function ActivityHistoryPage() {
   return (
-    <main className="min-h-screen bg-gray-100">
-      {/* Page header */}
-      <header className="flex items-center justify-between bg-white px-8 py-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <History className="h-8 w-8 text-emerald-700" />
+    <FarmLayout>
+      {/* Main Activity History panel */}
+      <section className="mx-auto w-full max-w-5xl rounded-lg border border-gray-300 bg-[#f8f9f6] p-5 shadow-lg">
 
-          <div>
-            <h1 className="text-2xl font-bold text-green-950">
-              Activity History
-            </h1>
-            <p className="text-sm text-gray-600">
-              Pleasant Grove Farms
-            </p>
+        {/* Back button on left, Activity History centered */}
+        <div className="relative mb-5 flex min-h-[52px] flex-col items-center justify-center gap-4 md:flex-row">
+
+          {/* Back to Dashboard */}
+          <Link
+            href="/main-dashboard"
+            className="flex items-center gap-2 rounded-md border border-gray-500 bg-emerald-50 px-4 py-2 text-sm font-semibold text-green-950 transition hover:bg-emerald-100 md:absolute md:left-0"
+          >
+            <ArrowLeft size={23} />
+            Back To Dashboard
+          </Link>
+
+          {/* Centered page title */}
+          <div className="flex items-center justify-center gap-4">
+            <History size={39} className="shrink-0 text-green-950" />
+
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-black">
+                Activity History
+              </h2>
+
+              <p className="text-xs font-semibold text-gray-700">
+                View System Changes and User Activity
+              </p>
+            </div>
           </div>
         </div>
 
-        <Link
-          href="/"
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700"
-        >
-          <ArrowLeft size={18} />
-          Back to Dashboard
-        </Link>
-      </header>
+        {/* Activity log section */}
+        <div className="rounded-md border border-gray-400 bg-white p-5">
 
-      {/* Page content */}
-      <section className="mx-auto max-w-6xl px-8 py-10">
-        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-          <h2 className="mb-4 text-xl font-bold text-green-950">
+          <h3 className="mb-3 text-xl font-bold text-green-950">
             System Activity Log
-          </h2>
+          </h3>
 
-          <p className="text-gray-600">
-            This page will display a history of actions performed
-            by users within the Pleasant Grove Farms Business
-            Management System.
+          <p className="text-sm text-gray-600">
+            This page will display a history of actions
+            performed by users within the Pleasant Grove Farms
+            Business Management System.
           </p>
 
-          <div className="mt-8 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+          {/* Empty activity state */}
+          <div className="mt-6 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
+
             <Clock
               size={48}
               className="mx-auto mb-4 text-emerald-700"
@@ -53,12 +63,17 @@ export default function ActivityHistoryPage() {
             </p>
 
             <p className="mt-2 text-sm text-gray-500">
-              Activity logging and database integration will be
-              implemented in a future sprint.
+              Activity logging and database integration will
+              be implemented in a future sprint.
             </p>
           </div>
         </div>
+
+        {/* Sprint 1 notice */}
+        <p className="mt-4 text-center text-xs text-gray-500">
+          Sprint 1 prototype — activity records not yet available
+        </p>
       </section>
-    </main>
+    </FarmLayout>
   );
 }
