@@ -67,7 +67,7 @@ const dashboardSections = [
     items: [
       { label: "Vendors", href: "/vendors", icon: Users },
       { label: "Enter Bills", href: "/bills", icon: FilePlus },
-      { label: "Pay Bills", href: "/bills", icon: CreditCard },
+      { label: "Pay Bills", href: "/pay-bills", icon: CreditCard },
       { label: "Unpaid Invoices", href: "/unpaid-invoices", icon: FileClock },
       { label: "View Payments", href: "/payments", icon: Wallet },
     ],
