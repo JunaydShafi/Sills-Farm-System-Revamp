@@ -77,7 +77,7 @@ const dashboardSections = [
     icon: Users,
     items: [
       { label: "Employees", href: "/employees", icon: UserRound },
-      { label: "Pay Employees", href: "/payroll", icon: Banknote },
+      { label: "Pay Employees", href: "/pay-employees", icon: Banknote },
       { label: "View Payroll", href: "/payroll", icon: ClipboardList },
       { label: "Pay/Earnings Qry", href: "/earnings", icon: ChartNoAxesColumn },
     ],
