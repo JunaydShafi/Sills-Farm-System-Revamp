@@ -1,6 +1,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/session";
+import LogoutButton from "./LogoutButton";
 
 import {
   ShoppingCart,
@@ -11,7 +15,6 @@ import {
   Landmark,
   ChartColumnIncreasing,
   FilePlus,
-  FileText,
   FileSearch,
   Receipt,
   History,
@@ -28,8 +31,6 @@ import {
   Settings,
   ChartNoAxesColumn,
   FileClock,
-  LogOut,
-  ChevronDown,
   Factory,
   ShoppingBag,
   List,
@@ -45,7 +46,11 @@ const dashboardSections = [
       { label: "View Orders", href: "/orders", icon: ClipboardList },
       { label: "New Invoice", href: "/invoices", icon: Receipt },
       { label: "View Invoice", href: "/invoices", icon: FileSearch },
-      { label: "History Sales", href: "/sales-history", icon: ChartColumnIncreasing },
+      {
+        label: "History Sales",
+        href: "/sales-history",
+        icon: ChartColumnIncreasing,
+      },
       { label: "Order Ship Cost", href: "/shipping", icon: Truck },
     ],
   },
@@ -68,7 +73,11 @@ const dashboardSections = [
       { label: "Vendors", href: "/vendors", icon: Users },
       { label: "Enter Bills", href: "/bills", icon: FilePlus },
       { label: "Pay Bills", href: "/pay-bills", icon: CreditCard },
-      { label: "Unpaid Invoices", href: "/unpaid-invoices", icon: FileClock },
+      {
+        label: "Unpaid Invoices",
+        href: "/unpaid-invoices",
+        icon: FileClock,
+      },
       { label: "View Payments", href: "/payments", icon: Wallet },
     ],
   },
@@ -79,7 +88,11 @@ const dashboardSections = [
       { label: "Employees", href: "/employees", icon: UserRound },
       { label: "Pay Employees", href: "/pay-employees", icon: Banknote },
       { label: "View Payroll", href: "/payroll", icon: ClipboardList },
-      { label: "Pay/Earnings Qry", href: "/earnings", icon: ChartNoAxesColumn },
+      {
+        label: "Pay/Earnings Qry",
+        href: "/earnings",
+        icon: ChartNoAxesColumn,
+      },
     ],
   },
   {
@@ -88,7 +101,11 @@ const dashboardSections = [
     items: [
       { label: "Bagging Data", href: "/bagging", icon: Package },
       { label: "Bag Inventory", href: "/bag-inventory", icon: ShoppingBag },
-      { label: "Proc Inventory", href: "/processing-inventory", icon: Factory },
+      {
+        label: "Proc Inventory",
+        href: "/processing-inventory",
+        icon: Factory,
+      },
     ],
   },
   {
@@ -99,14 +116,22 @@ const dashboardSections = [
       { label: "View Banking", href: "/banking", icon: List },
       { label: "Reconciliation", href: "/reconciliation", icon: Receipt },
       { label: "Ledger Accounts", href: "/ledger", icon: BookOpen },
-      { label: "Deposit Receivables", href: "/receivables", icon: Download },
+      {
+        label: "Deposit Receivables",
+        href: "/receivables",
+        icon: Download,
+      },
     ],
   },
   {
     title: "Reports",
     icon: ChartColumnIncreasing,
     items: [
-      { label: "Reports", href: "/reports", icon: ChartColumnIncreasing },
+      {
+        label: "Reports",
+        href: "/reports",
+        icon: ChartColumnIncreasing,
+      },
     ],
   },
 ];
@@ -171,15 +196,38 @@ const bottomNavigation = [
     href: "/activity-history",
     icon: History,
   },
-  {
-    label: "Exit System",
-    subtitle: "Close Application",
-    href: "/",
-    icon: LogOut,
-  },
 ];
 
-export default function Home() {
+// Main dashboard page
+export default async function Home() {
+  // STEP 1: Read and verify the session cookie.
+  const userId = await getSessionUserId();
+
+  // No valid session: redirect to Login.
+  if (!userId) {
+    redirect("/");
+  }
+
+  // STEP 2: Find the authenticated user in PostgreSQL.
+  const user = await prisma.users.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      role: true,
+      status: true,
+    },
+  });
+
+  // STEP 3: Only active accounts may access the dashboard.
+  if (!user || user.status !== "Active") {
+    redirect("/");
+  }
+
+  // STEP 4: Render the dashboard for the authenticated user.
   return (
     <main className="flex min-h-screen flex-col bg-gray-100">
       {/* HEADER */}
@@ -207,12 +255,12 @@ export default function Home() {
           </p>
         </div>
 
-       {/* Placeholder administrator display */}
+        {/* Display the actual authenticated user */}
         <div className="flex items-center justify-center rounded-lg border border-green-900 bg-emerald-600 px-4 py-4 text-black">
-        <div className="text-center">
-            <p className="font-bold">Edward M. Sills</p>
-            <p className="text-sm">Administrator</p>
-        </div>
+          <div className="text-center">
+            <p className="font-bold">{user.name}</p>
+            <p className="text-sm">{user.role}</p>
+          </div>
         </div>
       </header>
 
@@ -248,21 +296,11 @@ export default function Home() {
                 <BottomIcon
                   size={28}
                   strokeWidth={2.3}
-                  className={
-                    item.label === "Exit System"
-                      ? "shrink-0 text-red-700"
-                      : "shrink-0 text-green-900"
-                  }
+                  className="shrink-0 text-green-900"
                 />
 
                 <div className="text-left">
-                  <p
-                    className={
-                      item.label === "Exit System"
-                        ? "font-semibold text-red-700"
-                        : "font-semibold"
-                    }
-                  >
+                  <p className="font-semibold">
                     {item.label}
                   </p>
 
@@ -273,6 +311,9 @@ export default function Home() {
               </Link>
             );
           })}
+
+          {/* Functional logout button */}
+          <LogoutButton />
         </div>
       </div>
     </main>
