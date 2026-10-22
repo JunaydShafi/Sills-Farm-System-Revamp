@@ -2,13 +2,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserRound, LockKeyhole, Eye, EyeOff, LogIn } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +24,7 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         credentials: "same-origin",
+        cache: "no-store",
         body: JSON.stringify({
           username,
           password,
@@ -40,9 +38,12 @@ export default function LoginPage() {
         return;
       }
 
-      // The server has verified the password and set the session cookie.
-      router.replace("/main-dashboard");
-      router.refresh();
+      // The server has verified the credentials and created
+      // the authenticated session.
+      //
+      // Use a full-page navigation so the protected layout
+      // receives the newly created session cookie.
+      window.location.replace("/main-dashboard");
     } catch (error) {
       console.error("Login request failed:", error);
       setError("Unable to connect to the server. Please try again.");

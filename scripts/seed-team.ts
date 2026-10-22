@@ -17,11 +17,11 @@ async function main() {
 
   const users = [
     { name: "Junayd Shafi", username: "junaydshafi", role: "Administrator" },
-    { name: "Peter Krieg", username: "peterkrieg", role: "Employee" },
+    { name: "Peter Krieg", username: "peterkrieg", role: "Administrator" },
     { name: "Raymond Vieyra", username: "raymondvieyra", role: "Employee" },
-    { name: "Arraiz Pervez", username: "arraizpervez", role: "Employee" },
-    { name: "Christian Reyes", username: "christianreyes", role: "Employee" },
-    { name: "Derrick Lyerly", username: "derricklyerly", role: "Employee" },
+    { name: "Arraiz Pervez", username: "arraizpervez", role: "Administrator" },
+    { name: "Christian Reyes", username: "christianreyes", role: "Administrator" },
+    { name: "Derrick Lyerly", username: "derricklyerly", role: "Administrator" },
   ];
 
   const adapter = new PrismaPg({ connectionString });

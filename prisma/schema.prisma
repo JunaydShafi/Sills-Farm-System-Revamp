@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,7 +8,8 @@ datasource db {
   provider = "postgresql"
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains check constraints and requires additional setup for migrations.
+/// Visit https://pris.ly/d/check-constraints for more info.
 model users {
   id            Int             @id @default(autoincrement())
   employee_id   Int?
@@ -31,4 +33,16 @@ model user_sessions {
 
   @@index([expires_at], map: "idx_user_sessions_expires_at")
   @@index([user_id], map: "idx_user_sessions_user_id")
+}
+
+// Tracks temporary login restrictions by username.
+// No passwords or password hashes are stored here.
+model login_attempts {
+  username       String    @id @db.VarChar(50)
+  failed_count   Int       @default(0)
+  window_start   DateTime  @default(now()) @db.Timestamptz(6)
+  locked_until   DateTime? @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([locked_until])
 }

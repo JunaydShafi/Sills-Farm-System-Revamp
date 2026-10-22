@@ -1,13 +1,21 @@
 
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/session";
+
+import {
+  checkLoginLimit,
+  recordFailedLogin,
+  clearFailedLogins,
+} from "@/lib/loginRateLimit";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    // Parse the submitted credentials.
     const body = await request.json();
     const { username, password } = body;
 
@@ -15,41 +23,97 @@ export async function POST(request) {
       typeof username !== "string" ||
       typeof password !== "string" ||
       !username.trim() ||
+      username.trim().length > 50 ||
       !password
     ) {
       return NextResponse.json(
-        { error: "Username and password are required." },
+        { error: "Valid username and password are required." },
         { status: 400 }
       );
     }
 
+    const cleanUsername = username.trim();
+
+    // Check for an existing temporary login restriction.
+    const limit = await checkLoginLimit(cleanUsername);
+
+    if (limit.blocked) {
+      return NextResponse.json(
+        {
+          error: "Too many failed login attempts. Please try again later.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(limit.retryAfter),
+          },
+        }
+      );
+    }
+
+    // Retrieve the account.
     const user = await prisma.users.findUnique({
       where: {
-        username: username.trim(),
+        username: cleanUsername,
       },
     });
 
-    if (!user || user.status !== "Active") {
+    // Verify credentials without revealing whether the account exists.
+    let passwordMatches = false;
+
+    if (user && user.status === "Active") {
+      passwordMatches = await bcrypt.compare(
+        password,
+        user.password_hash
+      );
+    }
+
+    if (!user || user.status !== "Active" || !passwordMatches) {
+      const result = await recordFailedLogin(cleanUsername);
+
+      if (result.blocked) {
+        return NextResponse.json(
+          {
+            error: "Too many failed login attempts. Please try again in 15 minutes.",
+          },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": "900",
+            },
+          }
+        );
+      }
+
       return NextResponse.json(
         { error: "Invalid username or password." },
         { status: 401 }
       );
     }
 
-    const passwordMatches = await bcrypt.compare(
-      password,
-      user.password_hash
-    );
+    // Recheck before creating a session.
+    // This narrows the race with simultaneous failed requests.
+    const latestLimit = await checkLoginLimit(cleanUsername);
 
-    if (!passwordMatches) {
+    if (latestLimit.blocked) {
       return NextResponse.json(
-        { error: "Invalid username or password." },
-        { status: 401 }
+        {
+          error: "Too many failed login attempts. Please try again later.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(latestLimit.retryAfter),
+          },
+        }
       );
     }
 
-    // Create a secure session after successful authentication.
+    // Create the authenticated session.
     await createSession(user.id);
+
+    // Reset the failed-attempt counter.
+    await clearFailedLogins(cleanUsername);
 
     return NextResponse.json({
       success: true,
