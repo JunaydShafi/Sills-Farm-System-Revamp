@@ -46,7 +46,7 @@ export default function AddNewCustomerPage() {
     "w-full rounded-sm border border-gray-300 bg-white px-4 py-3 text-sm text-black outline-none focus:border-emerald-700";
 
   return (
-    <CustomerLayout>
+    <FarmLayout>
       <div className="mx-auto max-w-4xl text-black">
         {/* Breadcrumb */}
         <div className="mb-3 text-sm font-semibold">
@@ -261,6 +261,6 @@ export default function AddNewCustomerPage() {
           )}
         </form>
       </div>
-    </CustomerLayout>
+    </FarmLayout>
   );
 }
