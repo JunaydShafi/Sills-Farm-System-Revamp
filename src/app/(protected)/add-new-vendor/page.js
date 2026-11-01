@@ -4,6 +4,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import Link from "next/link";
 import FarmLayout from "@/app/FarmLayout";
 
@@ -23,6 +24,7 @@ const initialForm = {
 export default function AddNewVendorPage() {
     //Will store the vendor information for adding new vendors
     const [form, setForm] = useState(initialForm);
+    const [input, setinput] = useState({taxId: false});
     const [message, setMessage] = useState("");
 
      // Updates the corresponding field whenever the user enters information.
@@ -33,6 +35,11 @@ export default function AddNewVendorPage() {
       ...previous,
       [name]: value,
     }));
+
+    setinputs((value) => ({
+      ...value,
+      [name]: value
+    }))
   }
 
     function handleSubmit(event) {
@@ -222,11 +229,12 @@ export default function AddNewVendorPage() {
                 Tax Id <span className="text-red-700">*</span>
               </label>
               <input
+                type="checkbox"
                 id="tax"
                 name="taxId"
+                checked={input.taxId}
                 value={form.tax}
                 onChange={updateField}
-                placeholder="XX-XXXXXXXX"
                 className={fieldClass}
                 required
               />

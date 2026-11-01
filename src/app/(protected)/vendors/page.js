@@ -18,7 +18,7 @@ const sampleVendors = [
         city: "Vallejo",
         state: "CA",
         postCode: "94590",
-        taxId: "44-4444444",
+        taxId: "",
         defaultAcc: "FS5100",
         custAccId: "C-2001"
     },
@@ -30,7 +30,7 @@ const sampleVendors = [
         city: "Compton",
         state: "CA",
         postCode: "90210",
-        taxId: "12-2543532",
+        taxId: "",
         defaultAcc: "PS3402",
         custAccId: "C-2002"
     },
@@ -42,7 +42,7 @@ const sampleVendors = [
         city: "Fresno",
         state: "CA",
         postCode: "92520",
-        taxId: "77-7777777",
+        taxId: "",
         defaultAcc: "DI1233",
         custAccId: "C-2003"
     },
@@ -54,7 +54,7 @@ const sampleVendors = [
         city: "Sacramento",
         state: "CA",
         postCode: "94254",
-        taxId: "84-2308764",
+        taxId: "",
         defaultAcc: "SD5400",
         custAccId: "C-2004"
     },
@@ -93,7 +93,6 @@ export default function VendorsPage() {
 
   const filteredVendor = sampleVendors.filter((record) =>
     (!appliedFilters.name || record.name === appliedFilters.name) &&
-    (!appliedFilters.taxId || record.taxId === appliedFilters.taxId) &&
     (!appliedFilters.defaultAcc || record.defaultAcc === appliedFilters.defaultAcc) &&
     (!appliedFilters.custAccId || record.custAccId >= appliedFilters.custAccId) &&
     (!appliedFilters.id || record.id <= appliedFilters.id)
