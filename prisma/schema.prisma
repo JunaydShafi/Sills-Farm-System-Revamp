@@ -46,3 +46,17 @@ model login_attempts {
 
   @@index([locked_until])
 }
+// Stores customer information for the Sills Farm Business Management System.
+ // Customer codes are unique to prevent duplicate customer records.
+ model customers {
+   id            Int      @id @default(autoincrement())
+   customer_code String   @unique @db.VarChar(30)
+   name          String   @db.VarChar(150)
+   address       String   @db.VarChar(255)
+   city          String   @db.VarChar(100)
+   state         String   @db.VarChar(2)
+   zip           String   @db.VarChar(10)
+   phone         String   @db.VarChar(25)
+   status        String   @default("Active") @db.VarChar(20)
+   created_at    DateTime @default(now()) @db.Timestamptz(6)
+ }
