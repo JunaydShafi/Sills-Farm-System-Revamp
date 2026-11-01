@@ -19,7 +19,8 @@
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "usa-states": "^0.0.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
