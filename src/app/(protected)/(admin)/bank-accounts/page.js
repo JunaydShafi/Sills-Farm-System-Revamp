@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Landmark, ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoAccounts = [
@@ -58,7 +58,7 @@ export default function BankAccountsPage() {
   }
 
   return (
-    <SidebarLayout activeItem={{ label: "Bank Accounts", href: "/bank-accounts", icon: Landmark }}>
+    <SidebarLayout>
       <PageTitle
         title="Bank Accounts"
         subtitle="Manage bank account details and ledger assignments."

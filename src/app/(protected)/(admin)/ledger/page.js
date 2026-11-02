@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Landmark } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoEntries = [
@@ -52,7 +51,7 @@ export default function LedgerAccountsPage() {
   }
 
   return (
-    <SidebarLayout activeItem={{ label: "Ledger Accounts", href: "/ledger", icon: Landmark }}>
+    <SidebarLayout>
       <PageTitle
         title="Ledger Accounts"
         subtitle="Review general ledger entries and prepare reports."

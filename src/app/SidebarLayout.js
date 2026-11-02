@@ -1,27 +1,36 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import {
-    House,
-    Users,
+    Package,
+    ShoppingBag,
+    Factory,
+    Landmark,
     List,
-    FileText,
-    ChartNoAxesColumn,
+    Receipt,
+    BookOpen,
+    Download,
     ChevronDown,
     ArrowRight,
 } from "lucide-react";
 
-// Sidebar links shown above and below the active page
-const topNavigation = [
-    { label: "Home", href: "/main-dashboard", icon: House },
-    { label: "Customers", href: "/customers", icon: Users },
-    { label: "Products", href: "/sale-items", icon: List },
-    { label: "Vendors", href: "/vendors", icon: Users },
-    { label: "Invoices", href: "/invoices", icon: FileText },
-];
-
-const bottomNavigation = [
-    { label: "Reports", href: "/reports", icon: ChartNoAxesColumn },
+// Sidebar tabs for each dashboard section. Labels and hrefs match main-dashboard/page.js
+const sidebarSections = [
+    [
+        { label: "Bagging Data", href: "/bagging", icon: Package },
+        { label: "Bag Inventory", href: "/bag-inventory", icon: ShoppingBag },
+        { label: "Proc Inventory", href: "/processing-inventory", icon: Factory },
+    ],
+    [
+        { label: "Bank Accounts", href: "/bank-accounts", icon: Landmark },
+        { label: "View Banking", href: "/banking", icon: List },
+        { label: "Reconciliation", href: "/reconciliation", icon: Receipt },
+        { label: "Ledger Accounts", href: "/ledger", icon: BookOpen },
+        { label: "Deposit Receivables", href: "/receivables", icon: Download },
+    ],
 ];
 
 function SidebarLink({ item, active = false }) {
@@ -47,7 +56,14 @@ function SidebarLink({ item, active = false }) {
 }
 
 // Shared layout with header and left sidebar
-export default function SidebarLayout({ activeItem, children }) {
+export default function SidebarLayout({ children }) {
+    const pathname = usePathname();
+
+    const sectionItems =
+        sidebarSections.find((section) =>
+            section.some((item) => item.href === pathname)
+        ) ?? [];
+
     return (
         <main className="flex min-h-screen flex-col bg-white text-black">
 
@@ -108,14 +124,12 @@ export default function SidebarLayout({ activeItem, children }) {
 
                 {/* SIDEBAR */}
                 <nav className="flex shrink-0 flex-col gap-2 bg-gray-200 px-3 py-6 md:w-[220px]">
-                    {topNavigation.map((item) => (
-                        <SidebarLink key={item.label} item={item} />
-                    ))}
-
-                    <SidebarLink item={activeItem} active />
-
-                    {bottomNavigation.map((item) => (
-                        <SidebarLink key={item.label} item={item} />
+                    {sectionItems.map((item) => (
+                        <SidebarLink
+                            key={item.href}
+                            item={item}
+                            active={item.href === pathname}
+                        />
                     ))}
                 </nav>
 

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Landmark } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoInvoiced = [
@@ -40,7 +39,7 @@ export default function DepositReceivablesPage() {
   }
 
   return (
-    <SidebarLayout activeItem={{ label: "Deposits", href: "/receivables", icon: Landmark }}>
+    <SidebarLayout>
       <PageTitle
         title="Deposit Receivables"
         subtitle="Record customer payments and other receivables."
