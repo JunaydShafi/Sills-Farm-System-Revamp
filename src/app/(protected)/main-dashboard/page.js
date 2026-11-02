@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
 import LogoutButton from "./LogoutButton";
 import AccessDeniedButton from "./AccessDeniedButton";
+import FarmHeader from "@/components/FarmHeader";
 
 import {
   ShoppingCart,
@@ -43,10 +44,10 @@ const dashboardSections = [
     title: "ORDERS & SALES",
     icon: ShoppingCart,
     items: [
-      { label: "Enter Orders", href: "/orders", icon: FilePlus },
-      { label: "View Orders", href: "/orders", icon: ClipboardList },
-      { label: "New Invoice", href: "/invoices", icon: Receipt },
-      { label: "View Invoice", href: "/invoices", icon: FileSearch },
+      { label: "Enter Orders", href: "/order-details", icon: FilePlus },
+      { label: "View Orders", href: "/orders-view", icon: ClipboardList },
+      { label: "New Invoice", href: "/invoice-details", icon: Receipt },
+      { label: "View Invoice", href: "/invoices-view", icon: FileSearch },
       {
         label: "History Sales",
         href: "/sales-history",
@@ -257,43 +258,10 @@ export default async function Home() {
   // STEP 4: Render the dashboard for the authenticated user.
   return (
     <main className="flex min-h-screen flex-col bg-gray-100">
-      {/* HEADER */}
-      <header className="relative grid grid-cols-1 items-center gap-4 border-b-2 border-emerald-700 bg-white px-6 py-3 shadow-sm md:grid-cols-[185px_1fr_210px]">
-        {/* Farm logo */}
-        <div className="flex justify-center">
-          <Image
-            src="/logos/greenLogoTractor.png"
-            alt="Pleasant Grove Farms tractor logo"
-            width={185}
-            height={135}
-            className="h-auto w-[185px] object-contain"
-            priority
-          />
-        </div>
-
-        {/* Centered farm title */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-green-950 lg:text-3xl">
-            PLEASANT GROVE FARMS
-          </h1>
-
-          <p className="mt-1 text-lg font-semibold text-emerald-700 lg:text-xl">
-            Business Management System
-          </p>
-        </div>
-
-        {/* Display the actual authenticated user */}
-        <div className="flex items-center justify-center rounded-lg border border-green-900 bg-emerald-600 px-4 py-4 text-black">
-          <div className="text-center">
-            <p className="font-bold">{user.name}</p>
-            <p className="text-sm">{user.role}</p>
-          </div>
-        </div>
-      </header>
-
+      
       {/* DASHBOARD BACKGROUND */}
       <div
-        className="flex flex-1 flex-col bg-center bg-no-repeat px-5 py-4"
+        className="flex flex-1 flex-col bg-center bg-no-repeat"
         style={{
           backgroundImage: "url('/logos/backroundImage.png')",
           backgroundSize: "100% 100%",

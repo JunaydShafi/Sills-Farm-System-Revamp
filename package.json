@@ -15,7 +15,7 @@
     "dotenv": "^18.0.8",
     "jose": "^6.2.13",
     "lucide-react": "^1.56.0",
-    "next": "^16.4.2",
+    "next": "16.4.3",
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -26,7 +26,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/turbopack": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.3",
     "prisma": "^7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15"
