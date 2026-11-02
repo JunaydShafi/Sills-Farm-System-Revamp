@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Landmark } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoTransactions = [
@@ -43,7 +42,7 @@ export default function ReconciliationPage() {
   }
 
   return (
-    <SidebarLayout activeItem={{ label: "Reconciliation", href: "/reconciliation", icon: Landmark }}>
+    <SidebarLayout>
       <PageTitle
         title="Reconciliation"
         subtitle="Review and clear transactions for the selected month."
