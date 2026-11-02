@@ -17,26 +17,41 @@ export const styles = {
   tableCell: "border border-gray-300 px-2 py-1.5 text-xs whitespace-nowrap",
 };
 
-// EXIT button - returns to the Main Dashboard
-export function ExitButton() {
+// EXIT button - returns to the Main Dashboard.
+// Pages with unsaved changes can pass onNavigate and call
+// event.preventDefault() to show a warning before leaving.
+export function ExitButton({ onNavigate }) {
   return (
-    <Link href="/main-dashboard" className={styles.secondaryButton}>
+    <Link
+      href="/main-dashboard"
+      onNavigate={onNavigate}
+      className={styles.secondaryButton}
+    >
       <LogOut size={18} className="text-red-700" />
       EXIT
     </Link>
   );
 }
 
-// Yellow prototype message shown after clicking a button that has no backend yet
-export function PrototypeMessage({ message }) {
+const messageTones = {
+  info: "border-amber-300 bg-amber-50 text-amber-900",
+  success: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  error: "border-red-300 bg-red-50 text-red-900",
+};
+
+// Message strip under the footer buttons. "info" (yellow) is the default,
+// used for prototype notices; "success" and "error" are for action results.
+export function PrototypeMessage({ message, tone = "info" }) {
   if (!message) {
     return null;
   }
 
   return (
     <p
-      role="status"
-      className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-center text-sm text-amber-900"
+      role={tone === "error" ? "alert" : "status"}
+      className={`mt-4 rounded-md border p-3 text-center text-sm ${
+        messageTones[tone] ?? messageTones.info
+      }`}
     >
       {message}
     </p>
@@ -51,6 +66,7 @@ export default function FormWindow({
   icon: TitleIcon,
   footer,
   message,
+  messageTone = "info",
   maxWidth = "max-w-6xl",
   children,
 }) {
@@ -78,7 +94,7 @@ export default function FormWindow({
             </div>
           )}
 
-          <PrototypeMessage message={message} />
+          <PrototypeMessage message={message} tone={messageTone} />
 
           <p className="mt-3 text-center text-xs text-gray-500">
             Sprint 1 prototype — demonstration records only
