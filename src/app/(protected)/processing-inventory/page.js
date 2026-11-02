@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Box } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoProcRecords = [
@@ -59,7 +58,7 @@ export default function ProcInventoryPage() {
   }
 
   return (
-    <SidebarLayout activeItem={{ label: "Inventory", href: "/processing-inventory", icon: Box }}>
+    <SidebarLayout>
       <PageTitle
         title="Proc Inventory"
         subtitle="Process balances and closure status"

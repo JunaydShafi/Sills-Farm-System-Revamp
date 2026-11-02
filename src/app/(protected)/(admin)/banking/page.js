@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Landmark } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoTransactions = [
@@ -25,7 +24,7 @@ export default function ViewBankingPage() {
   const [account, setAccount] = useState("1001 · Operating Checking");
 
   return (
-    <SidebarLayout activeItem={{ label: "View Banking", href: "/banking", icon: Landmark }}>
+    <SidebarLayout>
       <PageTitle
         title="View Banking"
         subtitle="Review account transactions and balances."

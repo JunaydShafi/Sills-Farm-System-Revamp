@@ -60,3 +60,63 @@ model login_attempts {
    status        String   @default("Active") @db.VarChar(20)
    created_at    DateTime @default(now()) @db.Timestamptz(6)
  }
+
+// A processing run. process_number is the "Proc" shown on inventory screens.
+model processes {
+  id                   Int                    @id @default(autoincrement())
+  process_number       Int                    @unique
+  description          String                 @db.VarChar(150)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  bag_inventory_items  bag_inventory_items[]
+}
+
+// A product that can be sold. item_code is the "SaleItemID" on Bag Inventory.
+model sale_items {
+  id                   Int                    @id @default(autoincrement())
+  item_code            String                 @unique @db.VarChar(30)
+  name                 String                 @db.VarChar(150)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  bag_inventory_items  bag_inventory_items[]
+}
+
+// One row of Bag Inventory: a sale item bagged from a process at a bag size.
+// Balances are calculated from the tables below and are never stored here.
+model bag_inventory_items {
+  id                Int               @id @default(autoincrement())
+  process_id        Int
+  sale_item_id      Int
+  factor_lbs        Int
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  processes         processes         @relation(fields: [process_id], references: [id], onUpdate: NoAction)
+  sale_items        sale_items        @relation(fields: [sale_item_id], references: [id], onUpdate: NoAction)
+  bagging_records   bagging_records[]
+  bag_sales         bag_sales[]
+
+  @@unique([process_id, sale_item_id, factor_lbs])
+}
+
+// Bags produced. Only "Completed" records count toward Bags Made.
+model bagging_records {
+  id                  Int                  @id @default(autoincrement())
+  inventory_item_id   Int
+  bag_date            DateTime             @db.Date
+  quantity            Int
+  is_adjustment       Boolean              @default(false)
+  status              String               @default("Completed") @db.VarChar(20)
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items  @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
+
+  @@index([inventory_item_id])
+}
+
+// Bags sold. Orders and invoices can point at this table once they are built.
+model bag_sales {
+  id                  Int                  @id @default(autoincrement())
+  inventory_item_id   Int
+  sale_date           DateTime             @db.Date
+  units_sold          Int
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items  @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
+
+  @@index([inventory_item_id])
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Search, Plus } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
 
 const demoBagRecords = [
@@ -31,7 +31,7 @@ export default function BaggingDataPage() {
   );
 
   return (
-    <SidebarLayout activeItem={{ label: "Inventory", href: "/bagging", icon: Box }}>
+    <SidebarLayout>
       <PageTitle title="Bag Data" subtitle="Bagging Inventory Entry" />
 
       {/* Search and add */}
