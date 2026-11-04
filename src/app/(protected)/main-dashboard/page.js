@@ -38,7 +38,10 @@ import {
   List,
 } from "lucide-react";
 
+// ======================================================
 // Dashboard sections and their navigation buttons
+// ======================================================
+
 const dashboardSections = [
   {
     title: "ORDERS & SALES",
@@ -113,16 +116,38 @@ const dashboardSections = [
   {
     title: "BANKING & FINANCE",
     icon: CircleDollarSign,
+
+    // Default: Only Administrators can access this section.
     adminOnly: true,
+
     items: [
-      { label: "Bank Accounts", href: "/bank-accounts", icon: Landmark },
-      { label: "View Banking", href: "/banking", icon: List },
-      { label: "Reconciliation", href: "/reconciliation", icon: Receipt },
-      { label: "Ledger Accounts", href: "/ledger", icon: BookOpen },
+      {
+        label: "Bank Accounts",
+        href: "/bank-accounts",
+        icon: Landmark,
+      },
+      {
+        label: "View Banking",
+        href: "/banking",
+        icon: List,
+      },
+      {
+        label: "Reconciliation",
+        href: "/reconciliation",
+        icon: Receipt,
+      },
+      {
+        label: "Ledger Accounts",
+        href: "/ledger",
+        icon: BookOpen,
+      },
       {
         label: "Deposit Receivables",
         href: "/receivables",
         icon: Download,
+
+        // Exception: Employees can access this page.
+        adminOnly: false,
       },
     ],
   },
@@ -139,10 +164,12 @@ const dashboardSections = [
   },
 ];
 
+// ======================================================
 // Reusable dashboard card
+// ======================================================
+
 function DashboardSection({ section, isAdmin }) {
   const SectionIcon = section.icon;
-  const restricted = section.adminOnly && !isAdmin;
 
   return (
     <section className="w-full self-start overflow-hidden rounded-md border border-gray-700 bg-white/95 shadow-md">
@@ -156,6 +183,21 @@ function DashboardSection({ section, isAdmin }) {
       <div className="space-y-1 p-1.5">
         {section.items.map((item) => {
           const ButtonIcon = item.icon;
+
+          // ==================================================
+          // ROLE-BASED NAVIGATION
+          //
+          // 1. Individual item permissions take priority.
+          // 2. Otherwise, inherit the section permissions.
+          // 3. If neither is defined, allow both roles.
+          //
+          // Deposit Receivables overrides Banking & Finance
+          // and is available to Employees.
+          // ==================================================
+
+          const restricted =
+            (item.adminOnly ?? section.adminOnly ?? false) &&
+            !isAdmin;
 
           const buttonContent = (
             <>
@@ -174,6 +216,7 @@ function DashboardSection({ section, isAdmin }) {
           const buttonClass =
             "flex min-h-9 w-full items-center gap-3 rounded border border-gray-500 bg-white px-2.5 py-1 text-sm text-gray-900 transition hover:bg-emerald-100";
 
+          // Restricted buttons display Access Denied.
           if (restricted) {
             return (
               <AccessDeniedButton
@@ -185,6 +228,7 @@ function DashboardSection({ section, isAdmin }) {
             );
           }
 
+          // Authorized buttons navigate normally.
           return (
             <Link
               key={item.label}
@@ -200,7 +244,10 @@ function DashboardSection({ section, isAdmin }) {
   );
 }
 
+// ======================================================
 // Bottom dashboard navigation
+// ======================================================
+
 const bottomNavigation = [
   {
     label: "Federal Reporting",
@@ -223,7 +270,10 @@ const bottomNavigation = [
   },
 ];
 
+// ======================================================
 // Main dashboard page
+// ======================================================
+
 export default async function Home() {
   // STEP 1: Read and verify the session cookie.
   const userId = await getSessionUserId();
@@ -252,13 +302,12 @@ export default async function Home() {
     redirect("/");
   }
 
-  // Determine whether the authenticated user is an Administrator.
+  // Determine whether the user is an Administrator.
   const isAdmin = user.role === "Administrator";
 
-  // STEP 4: Render the dashboard for the authenticated user.
+  // STEP 4: Render the dashboard.
   return (
     <main className="flex min-h-screen flex-col bg-gray-100">
-      
       {/* DASHBOARD BACKGROUND */}
       <div
         className="flex flex-1 flex-col bg-center bg-no-repeat"
