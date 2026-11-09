@@ -6,15 +6,10 @@ import bcrypt from "bcryptjs";
 
 export const runtime = "nodejs";
 
-// ======================================================
-// GET - Retrieve all system users (Administrator only)
-// ======================================================
-
+// GET - List users (active Administrators only).
 export async function GET() {
   try {
-    // Verify the user has a valid session.
     const userId = await getSessionUserId();
-
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -22,13 +17,9 @@ export async function GET() {
       );
     }
 
-    // Only Administrators may view system users.
     const currentUser = await prisma.users.findUnique({
       where: { id: userId },
-      select: {
-        role: true,
-        status: true,
-      },
+      select: { role: true, status: true },
     });
 
     if (
@@ -42,7 +33,6 @@ export async function GET() {
       );
     }
 
-    // Retrieve only the fields needed for the table.
     const users = await prisma.users.findMany({
       select: {
         id: true,
@@ -51,13 +41,17 @@ export async function GET() {
         role: true,
         status: true,
         last_login: true,
+        is_owner: true,
       },
-      orderBy: {
-        id: "asc",
-      },
+      orderBy: { id: "asc" },
     });
 
-    return NextResponse.json(users);
+    return NextResponse.json(
+      users.map((user) => ({
+        ...user,
+        can_edit: !user.is_owner || user.id === userId,
+      }))
+    );
   } catch (error) {
     console.error("Failed to retrieve users:", error);
 
@@ -68,13 +62,9 @@ export async function GET() {
   }
 }
 
-// ======================================================
-// POST - Create a new system user (Administrator only)
-// ======================================================
-
+// POST - Create a new system user.
 export async function POST(request) {
   try {
-    // Verify the current session.
     const adminId = await getSessionUserId();
 
     if (!adminId) {
@@ -84,13 +74,9 @@ export async function POST(request) {
       );
     }
 
-    // Verify Administrator permissions.
     const admin = await prisma.users.findUnique({
       where: { id: adminId },
-      select: {
-        role: true,
-        status: true,
-      },
+      select: { role: true, status: true },
     });
 
     if (
@@ -103,10 +89,6 @@ export async function POST(request) {
         { status: 403 }
       );
     }
-
-    // ==================================================
-    // Read submitted information
-    // ==================================================
 
     let body;
 
@@ -130,16 +112,23 @@ export async function POST(request) {
       );
     }
 
-    const {
-      name,
-      username,
-      role,
-      status,
-      password,
-    } = body;
+    // Owner status is managed only by the server.
+    if (
+      Object.prototype.hasOwnProperty.call(
+        body,
+        "is_owner"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The System Owner designation cannot be assigned through User Management.",
+        },
+        { status: 403 }
+      );
+    }
 
-    // Never accept a precomputed password hash
-    // supplied by the browser.
+    // Never accept a password hash from the browser.
     if (
       Object.prototype.hasOwnProperty.call(
         body,
@@ -152,9 +141,8 @@ export async function POST(request) {
       );
     }
 
-    // ==================================================
-    // Validate new user information
-    // ==================================================
+    const { name, username, role, status, password } =
+      body;
 
     if (
       typeof name !== "string" ||
@@ -192,7 +180,6 @@ export async function POST(request) {
       );
     }
 
-    // New accounts must have a password.
     if (
       typeof password !== "string" ||
       password.length < 12 ||
@@ -210,17 +197,9 @@ export async function POST(request) {
     const cleanName = name.trim();
     const cleanUsername = username.trim();
 
-    // ==================================================
-    // Check for duplicate usernames
-    // ==================================================
-
     const existingUser = await prisma.users.findUnique({
-      where: {
-        username: cleanUsername,
-      },
-      select: {
-        id: true,
-      },
+      where: { username: cleanUsername },
+      select: { id: true },
     });
 
     if (existingUser) {
@@ -230,15 +209,7 @@ export async function POST(request) {
       );
     }
 
-    // ==================================================
-    // Hash the password before storing it
-    // ==================================================
-
     const passwordHash = await bcrypt.hash(password, 12);
-
-    // ==================================================
-    // Create the new account in PostgreSQL
-    // ==================================================
 
     const newUser = await prisma.users.create({
       data: {
@@ -247,10 +218,8 @@ export async function POST(request) {
         password_hash: passwordHash,
         role,
         status,
+        is_owner: false,
       },
-
-      // Return only safe account information.
-      // Never return the password hash.
       select: {
         id: true,
         name: true,
@@ -270,8 +239,6 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
-    // Handle duplicate usernames caused by
-    // simultaneous account creation requests.
     if (error.code === "P2002") {
       return NextResponse.json(
         { error: "That username is already taken." },

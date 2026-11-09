@@ -63,6 +63,7 @@ export async function GET(request, { params }) {
         username: true,
         role: true,
         status: true,
+        is_owner: true,
       },
     });
 
@@ -70,6 +71,22 @@ export async function GET(request, { params }) {
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
+      );
+    }
+
+    // ==================================================
+    // Protect the System Owner's editable profile
+    // ==================================================
+
+    // Only the owner may retrieve their own editable
+    // profile through this endpoint.
+    if (user.is_owner && adminId !== user.id) {
+      return NextResponse.json(
+        {
+          error:
+            "This account is protected. Only the System Owner may edit this profile.",
+        },
+        { status: 403 }
       );
     }
 
@@ -150,6 +167,27 @@ export async function PATCH(request, { params }) {
       return NextResponse.json(
         { error: "Invalid request data." },
         { status: 400 }
+      );
+    }
+
+    // ==================================================
+    // Protect server-controlled account fields
+    // ==================================================
+
+    // No User Management request may assign or remove
+    // the System Owner designation.
+    if (
+      Object.prototype.hasOwnProperty.call(
+        body,
+        "is_owner"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The System Owner designation cannot be modified through User Management.",
+        },
+        { status: 403 }
       );
     }
 
@@ -285,6 +323,7 @@ export async function PATCH(request, { params }) {
                   id: true,
                   role: true,
                   status: true,
+                  is_owner: true,
                 },
               });
 
@@ -292,7 +331,31 @@ export async function PATCH(request, { params }) {
               throw new Error("USER_NOT_FOUND");
             }
 
-            // Prevent duplicate usernames.
+            // ==========================================
+            // Protect the System Owner account
+            // ==========================================
+
+            if (existingUser.is_owner) {
+              // Another Administrator cannot edit
+              // the owner's account.
+              if (adminId !== existingUser.id) {
+                throw new Error("OWNER_ACCESS_DENIED");
+              }
+
+              // Even the owner cannot deactivate or
+              // demote the protected account.
+              if (
+                role !== "Administrator" ||
+                status !== "Active"
+              ) {
+                throw new Error("OWNER_ROLE_PROTECTED");
+              }
+            }
+
+            // ==========================================
+            // Prevent duplicate usernames
+            // ==========================================
+
             const duplicate =
               await tx.users.findUnique({
                 where: {
@@ -364,6 +427,7 @@ export async function PATCH(request, { params }) {
                 username: true,
                 role: true,
                 status: true,
+                is_owner: true,
               },
             });
 
@@ -426,6 +490,26 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    if (error.message === "OWNER_ACCESS_DENIED") {
+      return NextResponse.json(
+        {
+          error:
+            "This account is protected. Only the System Owner may edit this profile.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error.message === "OWNER_ROLE_PROTECTED") {
+      return NextResponse.json(
+        {
+          error:
+            "The System Owner account must remain an active Administrator.",
+        },
+        { status: 403 }
+      );
+    }
+
     if (
       error.message === "USERNAME_TAKEN" ||
       error.code === "P2002"
@@ -446,9 +530,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    if (
-      error.message === "ADMIN_ACCESS_REVOKED"
-    ) {
+    if (error.message === "ADMIN_ACCESS_REVOKED") {
       return NextResponse.json(
         {
           error:

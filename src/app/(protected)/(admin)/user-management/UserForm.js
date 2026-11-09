@@ -43,6 +43,7 @@ export default function UserForm({ mode = "add" }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [createdUser, setCreatedUser] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
@@ -76,7 +77,7 @@ export default function UserForm({ mode = "add" }) {
             response.status === 404
               ? "The selected user was not found."
               : response.status === 403
-                ? "Administrator access is required."
+                ? "Access denied. Only the System Owner may edit this protected account, or administrator access is required."
                 : response.status === 401
                   ? "Your session has expired. Please log in again."
                   : "Unable to load the selected user."
@@ -97,6 +98,7 @@ export default function UserForm({ mode = "add" }) {
         if (!controller.signal.aborted) {
           setForm(loadedForm);
           setOriginalForm(loadedForm);
+          setIsOwner(user.is_owner === true);
           setError("");
           setLoading(false);
         }
@@ -154,18 +156,36 @@ export default function UserForm({ mode = "add" }) {
 
     if (saving) return;
 
+    if (
+      isEditing &&
+      isOwner &&
+      (
+        form.role !== "Administrator" ||
+        form.status !== "Active"
+      )
+    ) {
+      setError(
+        "The System Owner must remain an active Administrator."
+      );
+      return;
+    }
+
     setMessage("");
     setError("");
     setCreatedUser(null);
 
     // Validate employee name and username.
     if (!form.employee.trim() || !form.username.trim()) {
-      setError("Employee name and username are required.");
+      setError(
+        "Employee name and username are required."
+      );
       return;
     }
 
     if (form.employee.trim().length > 150) {
-      setError("Employee name cannot exceed 150 characters.");
+      setError(
+        "Employee name cannot exceed 150 characters."
+      );
       return;
     }
 
@@ -180,8 +200,6 @@ export default function UserForm({ mode = "add" }) {
       return;
     }
 
-    // ADD MODE: Password confirmation is required.
-    // EDIT MODE: Password fields are optional.
     const changingPassword =
       !isEditing ||
       Boolean(form.password || form.confirmPassword);
@@ -213,15 +231,11 @@ export default function UserForm({ mode = "add" }) {
       username: form.username.trim(),
       role: form.role,
       status: form.status,
-
-      // Add mode always sends a password.
-      // Edit mode sends one only when resetting it.
       ...(changingPassword && {
         password: form.password,
       }),
     };
 
-    // Choose the correct endpoint based on mode.
     const endpoint = isEditing
       ? `/api/users/${encodeURIComponent(userId)}`
       : "/api/users";
@@ -251,10 +265,6 @@ export default function UserForm({ mode = "add" }) {
       }
 
       if (isEditing) {
-        // ============================================
-        // EDIT MODE: Update saved profile information
-        // ============================================
-
         const savedForm = {
           employee: data.user.name,
           username: data.user.username,
@@ -267,32 +277,21 @@ export default function UserForm({ mode = "add" }) {
         setForm(savedForm);
         setOriginalForm(savedForm);
         setMessage("User profile updated successfully.");
-
-        // Refresh server-rendered authorization state.
         router.refresh();
       } else {
-        // ============================================
-        // ADD MODE: Account successfully created
-        // ============================================
-
         setCreatedUser(data.user);
 
         setMessage(
           `New user "${data.user.username}" created successfully.`
         );
 
-        // Clear form to allow another user to be added.
         setForm({ ...emptyForm });
         setShowPassword(false);
         setShowConfirmPassword(false);
-
-        // Refresh data for the next navigation.
         router.refresh();
       }
     } catch (err) {
-      setError(
-        err.message || "Unable to save user."
-      );
+      setError(err.message || "Unable to save user.");
     } finally {
       setSaving(false);
     }
@@ -310,7 +309,8 @@ export default function UserForm({ mode = "add" }) {
     (!userId || !/^[1-9]\d*$/.test(userId));
 
   const formUnavailable =
-    isEditing && (loading || error && !form.employee || invalidUserId);
+    isEditing &&
+    (loading || (error && !form.employee) || invalidUserId);
 
   return (
     <FarmLayout>
@@ -330,13 +330,11 @@ export default function UserForm({ mode = "add" }) {
                 size={26}
                 className="text-black"
               />
-
               <h2 className="font-bold text-black">
                 {isEditing ? "Edit User" : "Add User"}
               </h2>
             </div>
 
-            {/* Invalid Edit User ID */}
             {invalidUserId && (
               <p
                 role="alert"
@@ -347,7 +345,6 @@ export default function UserForm({ mode = "add" }) {
               </p>
             )}
 
-            {/* Loading existing user */}
             {loading && !invalidUserId && (
               <p
                 role="status"
@@ -357,7 +354,6 @@ export default function UserForm({ mode = "add" }) {
               </p>
             )}
 
-            {/* Error messages */}
             {error && (
               <p
                 role="alert"
@@ -367,7 +363,6 @@ export default function UserForm({ mode = "add" }) {
               </p>
             )}
 
-            {/* Success messages */}
             {message && (
               <div
                 role="status"
@@ -382,7 +377,6 @@ export default function UserForm({ mode = "add" }) {
                     <p>
                       New User ID: {createdUser.id}
                     </p>
-
                     <Link
                       href="/user-management"
                       className="mt-3 inline-flex rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
@@ -399,6 +393,14 @@ export default function UserForm({ mode = "add" }) {
                 onSubmit={handleSave}
                 className="space-y-4"
               >
+                {isEditing && isOwner && (
+                  <p className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-green-950">
+                    System Owner account: role and status are
+                    locked. You can update your name, username,
+                    or password.
+                  </p>
+                )}
+
                 {/* Employee Name */}
                 <div>
                   <label
@@ -482,18 +484,18 @@ export default function UserForm({ mode = "add" }) {
                       <select
                         id="role"
                         value={form.role}
+                        disabled={isEditing && isOwner}
                         onChange={(event) =>
                           updateField(
                             "role",
                             event.target.value
                           )
                         }
-                        className={`${inputStyle} pl-10`}
+                        className={`${inputStyle} pl-10 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-600`}
                       >
                         <option value="Employee">
                           Employee
                         </option>
-
                         <option value="Administrator">
                           Administrator
                         </option>
@@ -546,9 +548,7 @@ export default function UserForm({ mode = "add" }) {
                     <button
                       type="button"
                       onClick={() =>
-                        setShowPassword(
-                          !showPassword
-                        )
+                        setShowPassword(!showPassword)
                       }
                       aria-label={
                         showPassword
@@ -647,16 +647,12 @@ export default function UserForm({ mode = "add" }) {
                       type="radio"
                       name="status"
                       value="Active"
-                      checked={
-                        form.status === "Active"
-                      }
+                      disabled={isEditing && isOwner}
+                      checked={form.status === "Active"}
                       onChange={() =>
-                        updateField(
-                          "status",
-                          "Active"
-                        )
+                        updateField("status", "Active")
                       }
-                      className="accent-emerald-600"
+                      className="accent-emerald-600 disabled:cursor-not-allowed"
                     />
                   </label>
 
@@ -667,16 +663,12 @@ export default function UserForm({ mode = "add" }) {
                       type="radio"
                       name="status"
                       value="Inactive"
-                      checked={
-                        form.status === "Inactive"
-                      }
+                      disabled={isEditing && isOwner}
+                      checked={form.status === "Inactive"}
                       onChange={() =>
-                        updateField(
-                          "status",
-                          "Inactive"
-                        )
+                        updateField("status", "Inactive")
                       }
-                      className="accent-emerald-600"
+                      className="accent-emerald-600 disabled:cursor-not-allowed"
                     />
                   </label>
                 </fieldset>
@@ -690,9 +682,7 @@ export default function UserForm({ mode = "add" }) {
                     className="inline-flex items-center gap-2 rounded-md border border-gray-500 bg-white px-5 py-2 font-semibold text-black hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw size={20} />
-                    {isEditing
-                      ? "Reset"
-                      : "Clear"}
+                    {isEditing ? "Reset" : "Clear"}
                   </button>
 
                   <button
@@ -701,10 +691,7 @@ export default function UserForm({ mode = "add" }) {
                     className="inline-flex items-center gap-2 rounded-md border border-green-900 bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Save size={20} />
-
-                    {saving
-                      ? "Saving..."
-                      : "Save User"}
+                    {saving ? "Saving..." : "Save User"}
                   </button>
                 </div>
               </form>

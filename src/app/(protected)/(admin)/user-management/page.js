@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   SquarePen,
+  LockKeyhole,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -18,17 +19,13 @@ import FarmLayout from "@/app/FarmLayout";
 const USERS_PER_PAGE = 10;
 
 export default function UserManagementPage() {
-  // Search and filter states
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
 
-  // Database user records
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
 
   // Retrieve users from PostgreSQL through our API.
@@ -74,16 +71,13 @@ export default function UserManagementPage() {
     }
 
     loadUsers();
-
     return () => controller.abort();
   }, []);
 
-  // Reset pagination when search or filters change.
   function resetPagination() {
     setCurrentPage(1);
   }
 
-  // Search and filter actual database users.
   const filteredUsers = users.filter((user) => {
     const searchText = search.trim().toLowerCase();
 
@@ -101,28 +95,26 @@ export default function UserManagementPage() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  // Calculate pagination.
   const totalPages = Math.max(
     1,
     Math.ceil(filteredUsers.length / USERS_PER_PAGE)
   );
 
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const safeCurrentPage = Math.min(
+    currentPage,
+    totalPages
+  );
 
   const startIndex =
     (safeCurrentPage - 1) * USERS_PER_PAGE;
 
-  // Only display 10 users per page.
   const paginatedUsers = filteredUsers.slice(
     startIndex,
     startIndex + USERS_PER_PAGE
   );
 
-  // Format PostgreSQL timestamps for display.
   function formatLastLogin(lastLogin) {
-    if (!lastLogin) {
-      return "Never";
-    }
+    if (!lastLogin) return "Never";
 
     const date = new Date(lastLogin);
 
@@ -147,8 +139,6 @@ export default function UserManagementPage() {
 
         {/* Page title */}
         <div className="relative mb-5 flex min-h-[65px] items-center justify-center">
-
-          {/* Back button */}
           <Link
             href="/main-dashboard"
             className="absolute left-0 flex items-center gap-2 rounded-md border border-gray-500 bg-emerald-50 px-4 py-2 text-sm font-semibold text-green-950 hover:bg-emerald-100"
@@ -157,13 +147,11 @@ export default function UserManagementPage() {
             Back To Dashboard
           </Link>
 
-          {/* Centered gear icon and title */}
           <div className="flex items-center justify-center gap-4">
             <Settings
               size={39}
               className="text-green-950"
             />
-
             <div>
               <h2 className="text-2xl font-bold text-black">
                 User Management
@@ -199,8 +187,10 @@ export default function UserManagementPage() {
 
             {/* Search bar */}
             <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-400 px-3 py-2">
-              <Search size={17} className="text-gray-700" />
-
+              <Search
+                size={17}
+                className="text-gray-700"
+              />
               <input
                 type="text"
                 value={search}
@@ -249,7 +239,6 @@ export default function UserManagementPage() {
             </label>
           </div>
 
-          {/* Loading message */}
           {loading && (
             <p
               role="status"
@@ -259,7 +248,6 @@ export default function UserManagementPage() {
             </p>
           )}
 
-          {/* Error message */}
           {error && (
             <p
               role="alert"
@@ -302,7 +290,6 @@ export default function UserManagementPage() {
                       key={user.id}
                       className="hover:bg-gray-50"
                     >
-
                       {/* User ID */}
                       <td className="border border-gray-400 px-2 py-2">
                         {user.id}
@@ -321,10 +308,11 @@ export default function UserManagementPage() {
                       {/* Role */}
                       <td className="border border-gray-400 px-2 py-2">
                         <span
-                          className={`rounded-md px-2 py-1 text-xs font-semibold ${user.role === "Administrator"
+                          className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                            user.role === "Administrator"
                               ? "bg-green-200"
                               : "bg-blue-100"
-                            }`}
+                          }`}
                         >
                           {user.role}
                         </span>
@@ -334,10 +322,11 @@ export default function UserManagementPage() {
                       <td className="border border-gray-400 px-2 py-2">
                         <span className="flex items-center gap-1">
                           <span
-                            className={`h-2 w-2 rounded-full ${user.status === "Active"
+                            className={`h-2 w-2 rounded-full ${
+                              user.status === "Active"
                                 ? "bg-green-600"
                                 : "bg-red-600"
-                              }`}
+                            }`}
                           />
                           {user.status}
                         </span>
@@ -348,20 +337,29 @@ export default function UserManagementPage() {
                         {formatLastLogin(user.last_login)}
                       </td>
 
-                      {/* Edit Profile */}
+                      {/* Edit Profile / Owner Protected */}
                       <td className="border border-gray-400 px-2 py-2">
-                        <Link
-                          href={`/user-management/edit?id=${user.id}`}
-                          className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-gray-500 bg-emerald-50 px-2 py-1 text-xs font-semibold hover:bg-emerald-100"
-                        >
-                          <SquarePen size={14} />
-                          Edit Profile
-                        </Link>
+                        {user.can_edit === false ? (
+                          <span
+                            title="Only the System Owner can edit this account"
+                            className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-md border border-gray-300 bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-600"
+                          >
+                            <LockKeyhole size={14} />
+                            Owner Protected
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/user-management/edit?id=${user.id}`}
+                            className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-gray-500 bg-emerald-50 px-2 py-1 text-xs font-semibold hover:bg-emerald-100"
+                          >
+                            <SquarePen size={14} />
+                            Edit Profile
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}
 
-                {/* No matching records */}
                 {!loading &&
                   !error &&
                   filteredUsers.length === 0 && (
@@ -384,20 +382,16 @@ export default function UserManagementPage() {
         {/* Pagination controls */}
         {!loading && !error && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-
-            {/* User count */}
             <p className="text-sm text-gray-600">
               {filteredUsers.length === 0
                 ? "Showing 0 users"
                 : `Showing ${startIndex + 1}-${Math.min(
-                  startIndex + USERS_PER_PAGE,
-                  filteredUsers.length
-                )} of ${filteredUsers.length} users`}
+                    startIndex + USERS_PER_PAGE,
+                    filteredUsers.length
+                  )} of ${filteredUsers.length} users`}
             </p>
 
-            {/* Previous / Next navigation */}
             <div className="flex items-center gap-3">
-
               <button
                 type="button"
                 onClick={() =>
@@ -429,7 +423,6 @@ export default function UserManagementPage() {
                 Next
                 <ChevronRight size={17} />
               </button>
-
             </div>
           </div>
         )}
