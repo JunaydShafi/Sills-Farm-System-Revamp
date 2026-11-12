@@ -67,71 +67,7 @@ export default function SidebarLayout({ children }) {
     return (
         <main className="flex min-h-screen flex-col bg-white text-black">
 
-            {/* HEADER - Matches Main Dashboard */}
-            <header className="relative grid grid-cols-1 items-center gap-4 bg-white px-6 py-3 md:grid-cols-[185px_1fr_auto_230px]">
-
-                {/* Farm logo - Click to return to dashboard */}
-                <Link
-                    href="/main-dashboard"
-                    className="flex justify-center"
-                    aria-label="Return to Main Dashboard"
-                    title="Return to Main Dashboard"
-                >
-                    <Image
-                        src="/logos/greenLogoTractor.png"
-                        alt="Pleasant Grove Farms tractor logo"
-                        width={185}
-                        height={135}
-                        className="h-auto w-[185px] object-contain"
-                        priority
-                    />
-                </Link>
-
-                {/* Centered farm title */}
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold text-green-950 lg:text-3xl">
-                        PLEASANT GROVE FARMS
-                    </h1>
-
-                    <p className="mt-1 text-lg font-semibold text-emerald-700 lg:text-xl">
-                        Business Management System
-                    </p>
-                </div>
-
-                {/* Divider */}
-                <div className="hidden h-[70px] w-px bg-gray-500 md:block" />
-
-                {/* Placeholder administrator display */}
-                <div className="relative flex items-center justify-center rounded-lg border border-green-900 bg-emerald-600 px-4 py-5 text-black">
-                    <div className="text-center">
-                        <p className="font-bold">
-                            Edward M. Sills
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                            Administrator
-                        </p>
-                    </div>
-
-                    <ChevronDown
-                        size={18}
-                        strokeWidth={2.5}
-                        className="absolute right-4 top-1/2 -translate-y-1/2"
-                    />
-                </div>
-            </header>
-
             <div className="flex flex-1 flex-col md:flex-row">
-
-                {/* SIDEBAR */}
-                <nav className="flex shrink-0 flex-col gap-2 bg-gray-200 px-3 py-6 md:w-[220px]">
-                    {sectionItems.map((item) => (
-                        <SidebarLink
-                            key={item.href}
-                            item={item}
-                            active={item.href === pathname}
-                        />
-                    ))}
-                </nav>
 
                 {/* Page content */}
                 <div className="flex min-w-0 flex-1 flex-col px-6 py-4">

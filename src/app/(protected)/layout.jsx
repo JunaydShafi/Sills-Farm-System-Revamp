@@ -12,7 +12,7 @@ export default async function ProtectedLayout({ children }) {
       <div className="flex flex-1 flex-col md:flex-row">
         <FarmSidebar />
 
-        <main className="min-w-0 flex-1 p-6">
+        <main className="min-w-0 flex-1 p-0">
           {children}
         </main>
       </div>
