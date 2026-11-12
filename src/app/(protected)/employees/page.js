@@ -17,73 +17,11 @@ import {
 import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
 import ConfirmDialog from "@/app/ConfirmDialog";
 import EmployeePrintView from "./EmployeePrintView";
-import {
-  normalizeEmployee,
-  requiredFields,
-  validateEmployee,
-} from "./employeeValidation";
+import { apiRequest } from "@/lib/apiClient";
+import { requiredFields, validateEmployee } from "./employeeValidation";
 
-// Demo employee records. Changes are kept in memory only until the database
-// is connected (SFBMSR-140), so refreshing the page restores this list.
-const demoEmployees = [
-  {
-    employeeId: "001",
-    name: "John Doe",
-    street: "123 Main St",
-    city: "Pleasant Grove",
-    state: "CA",
-    zip: "95668",
-    phone: "916-555-0101",
-    active: "Active",
-    ssn: "•••-••-1234",
-    payRate: "22.00",
-    irrPayRate: "NA",
-    status: "Active",
-    allowances: "000",
-    withholding: "001",
-    childSupport: "0",
-    startDate: "2020-04-20",
-    notes: "None",
-  },
-  {
-    employeeId: "002",
-    name: "Jane Doe",
-    street: "456 Oak Ave",
-    city: "Sacramento",
-    state: "CA",
-    zip: "95814",
-    phone: "916-555-0102",
-    active: "Active",
-    ssn: "•••-••-5678",
-    payRate: "24.50",
-    irrPayRate: "NA",
-    status: "Active",
-    allowances: "001",
-    withholding: "002",
-    childSupport: "0",
-    startDate: "2021-06-01",
-    notes: "None",
-  },
-  {
-    employeeId: "003",
-    name: "Robert Garcia",
-    street: "789 Field Rd",
-    city: "Rio Linda",
-    state: "CA",
-    zip: "95673",
-    phone: "916-555-0103",
-    active: "Inactive",
-    ssn: "•••-••-9012",
-    payRate: "19.75",
-    irrPayRate: "NA",
-    status: "Inactive",
-    allowances: "000",
-    withholding: "000",
-    childSupport: "0",
-    startDate: "2019-03-15",
-    notes: "Seasonal",
-  },
-];
+// Employee records are loaded from and saved to PostgreSQL through
+// /api/employees (SFBMSR-286).
 
 const emptyEmployee = {
   employeeId: "",
@@ -209,10 +147,12 @@ function FieldRow({ field, value, onChange, labelWidth, error, disabled }) {
 export default function EmployeesPage() {
   const router = useRouter();
 
-  const [employees, setEmployees] = useState(demoEmployees);
+  const [employees, setEmployees] = useState([]);
   const [index, setIndex] = useState(0);
-  const [form, setForm] = useState(demoEmployees[0]);
+  const [form, setForm] = useState(emptyEmployee);
   const [isNew, setIsNew] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState("info");
@@ -220,12 +160,41 @@ export default function EmployeesPage() {
   const [printView, setPrintView] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const isEmpty = employees.length === 0 && !isNew;
+  const isEmpty = !loading && employees.length === 0 && !isNew;
+  const isBusy = loading || saving;
   const savedRecord = isNew ? emptyEmployee : employees[index] ?? emptyEmployee;
-  const hasUnsavedChanges = !isEmpty && hasChanges(form, savedRecord);
+  const hasUnsavedChanges = !isEmpty && !loading && hasChanges(form, savedRecord);
 
   const closeDialog = useCallback(() => setDialog(null), []);
   const closePrintView = useCallback(() => setPrintView(null), []);
+
+  // Load employee records from the database when the page opens
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { ok, data } = await apiRequest("/api/employees");
+      if (cancelled) {
+        return;
+      }
+
+      setLoading(false);
+
+      if (!ok) {
+        setMessage(data.error ?? "Unable to load employee records.");
+        setMessageTone("error");
+        return;
+      }
+
+      setEmployees(data.employees);
+      setIndex(0);
+      setForm(data.employees[0] ?? emptyEmployee);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Browser leave-page warning when refreshing or closing the tab with
   // unsaved changes
@@ -313,7 +282,11 @@ export default function EmployeesPage() {
     });
   }
 
-  function handleUpdate() {
+  async function handleUpdate() {
+    if (isBusy) {
+      return;
+    }
+
     if (!isNew && !hasUnsavedChanges) {
       showMessage("No changes to save.");
       return;
@@ -339,7 +312,23 @@ export default function EmployeesPage() {
       return;
     }
 
-    const saved = normalizeEmployee(form);
+    // Save to the database; the server checks everything again
+    setSaving(true);
+    const { ok, data } = await apiRequest(
+      isNew ? "/api/employees" : `/api/employees/${savedRecord.id}`,
+      { method: isNew ? "POST" : "PUT", body: JSON.stringify(form) }
+    );
+    setSaving(false);
+
+    if (!ok) {
+      if (data.errors) {
+        setErrors(data.errors);
+      }
+      showMessage(data.error ?? "Unable to save. Please try again.", "error");
+      return;
+    }
+
+    const saved = data.employee;
 
     if (isNew) {
       const list = [...employees, saved];
@@ -360,25 +349,53 @@ export default function EmployeesPage() {
   }
 
   function handleDelete() {
-    if (isNew || isEmpty) {
+    if (isNew || isEmpty || isBusy) {
       return;
     }
 
     const record = employees[index];
+    const hasPayroll = record.payrollCount > 0;
 
     setDialog({
-      title: "Delete employee",
-      message: `Delete ${record.name} (Employee ID ${record.employeeId})? This cannot be undone.`,
+      title: hasPayroll ? "Set employee inactive" : "Delete employee",
+      message: hasPayroll
+        ? `${record.name} (Employee ID ${record.employeeId}) has payroll history, so they will be set to Inactive instead of deleted. Their pay records are kept. Continue?`
+        : `Delete ${record.name} (Employee ID ${record.employeeId})? This cannot be undone.`,
       cancelLabel: "Cancel",
-      confirmLabel: "Delete",
+      confirmLabel: hasPayroll ? "Set Inactive" : "Delete",
       danger: true,
-      onConfirm: () => {
+      onConfirm: async () => {
+        setDialog(null);
+        setSaving(true);
+        const { ok, data } = await apiRequest(`/api/employees/${record.id}`, {
+          method: "DELETE",
+        });
+        setSaving(false);
+
+        if (!ok) {
+          showMessage(data.error ?? "Unable to delete. Please try again.", "error");
+          return;
+        }
+
+        // Employee had payroll history: kept, but now Inactive
+        if (data.result === "deactivated") {
+          const updatedList = employees.map((employee) =>
+            employee.id === record.id ? data.employee : employee
+          );
+          setEmployees(updatedList);
+          showRecord(index, updatedList);
+          showMessage(
+            `${record.name} has payroll history, so they were set to Inactive instead of deleted.`,
+            "success"
+          );
+          return;
+        }
+
         const list = employees.filter(
           (_employee, employeeIndex) => employeeIndex !== index
         );
 
         setEmployees(list);
-        setDialog(null);
 
         if (list.length === 0) {
           showRecord(0, list);
@@ -478,7 +495,9 @@ export default function EmployeesPage() {
   }
 
   let recordLabel = `Record ${index + 1} of ${employees.length}`;
-  if (isNew) {
+  if (loading) {
+    recordLabel = "Loading employees…";
+  } else if (isNew) {
     recordLabel = "New record";
   } else if (isEmpty) {
     recordLabel = "No employee records";
@@ -486,6 +505,7 @@ export default function EmployeesPage() {
 
   return (
     <FormWindow
+      showPrototypeNote={false}
       title="Employees"
       icon={UserRound}
       maxWidth="max-w-5xl"
@@ -496,7 +516,7 @@ export default function EmployeesPage() {
           <button
             type="button"
             onClick={() => setPrintView("notification")}
-            disabled={isNew || isEmpty}
+            disabled={isNew || isEmpty || isBusy}
             className={`${styles.secondaryButton} ${disabledLook}`}
           >
             <Printer size={18} />
@@ -506,7 +526,7 @@ export default function EmployeesPage() {
           <button
             type="button"
             onClick={() => setPrintView("report")}
-            disabled={employees.length === 0}
+            disabled={employees.length === 0 || isBusy}
             className={`${styles.secondaryButton} ${disabledLook}`}
           >
             <Printer size={18} />
@@ -517,7 +537,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={() => goTo(index - 1)}
-              disabled={employees.length === 0}
+              disabled={employees.length === 0 || isBusy}
               className={`${styles.secondaryButton} ${disabledLook}`}
             >
               <ChevronLeft size={18} />
@@ -527,7 +547,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={() => goTo(isNew ? index : index + 1)}
-              disabled={employees.length === 0}
+              disabled={employees.length === 0 || isBusy}
               className={`${styles.secondaryButton} ${disabledLook}`}
             >
               Next
@@ -572,7 +592,7 @@ export default function EmployeesPage() {
               value={form[field.key]}
               onChange={updateField}
               error={errors[field.key]}
-              disabled={isEmpty}
+              disabled={isEmpty || loading}
               labelWidth="grid-cols-[150px_1fr]"
             />
           ))}
@@ -581,7 +601,8 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={handleAdd}
-              className={styles.primaryButton}
+              disabled={isBusy}
+              className={`${styles.primaryButton} ${disabledLook}`}
             >
               <Plus size={18} />
               Add
@@ -590,17 +611,17 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={handleUpdate}
-              disabled={isEmpty}
+              disabled={isEmpty || isBusy}
               className={`${styles.primaryButton} ${disabledLook}`}
             >
               <Save size={18} />
-              Update
+              {saving ? "Saving…" : "Update"}
             </button>
 
             <button
               type="button"
               onClick={handleDelete}
-              disabled={isNew || isEmpty}
+              disabled={isNew || isEmpty || isBusy}
               title={isNew ? "Save or undo the new employee before deleting." : undefined}
               className={`${styles.primaryButton} ${disabledLook}`}
             >
@@ -611,7 +632,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={handleUndo}
-              disabled={isEmpty}
+              disabled={isEmpty || isBusy}
               className={`${styles.primaryButton} ${disabledLook}`}
             >
               <RotateCcw size={18} />
@@ -629,7 +650,7 @@ export default function EmployeesPage() {
               value={form[field.key]}
               onChange={updateField}
               error={errors[field.key]}
-              disabled={isEmpty}
+              disabled={isEmpty || loading}
               labelWidth="grid-cols-[130px_1fr]"
             />
           ))}
@@ -638,8 +659,8 @@ export default function EmployeesPage() {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
         <span>
-          <span className="text-red-700">*</span> Required. Changes are kept
-          until the page is refreshed (database saving comes later).
+          <span className="text-red-700">*</span> Required. Changes are saved
+          to the database. Only the last four SSN digits are stored.
         </span>
         <span>
           {hasUnsavedChanges && (

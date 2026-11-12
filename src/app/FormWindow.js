@@ -67,6 +67,8 @@ export default function FormWindow({
   footer,
   message,
   messageTone = "info",
+  // Pages connected to the database pass showPrototypeNote={false}
+  showPrototypeNote = true,
   maxWidth = "max-w-6xl",
   children,
 }) {
@@ -96,9 +98,11 @@ export default function FormWindow({
 
           <PrototypeMessage message={message} tone={messageTone} />
 
-          <p className="mt-3 text-center text-xs text-gray-500">
-            Sprint 1 prototype — demonstration records only
-          </p>
+          {showPrototypeNote && (
+            <p className="mt-3 text-center text-xs text-gray-500">
+              Sprint 1 prototype — demonstration records only
+            </p>
+          )}
         </div>
       </section>
     </FarmLayout>
