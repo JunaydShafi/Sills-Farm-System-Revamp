@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { Search,ArrowDown } from "lucide-react";
 import Link from "next/link";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 //Demo data (database isn't implemented yet)
 const vendorName = [

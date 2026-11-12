@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/session";
+import { prisma } from "../../../lib/prisma";
+import { getSessionUserId } from "../../../lib/session";
 
 export default async function AdminLayout({ children }) {
   // STEP 1: Verify the user's authenticated session.

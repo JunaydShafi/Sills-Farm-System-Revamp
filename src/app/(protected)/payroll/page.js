@@ -4,7 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ClipboardList, Search, FileText } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import FormWindow, { ExitButton, styles } from "../../FormWindow";
 
 // Demo payroll checks (Sprint 1 - no database yet)
 const demoPayroll = [

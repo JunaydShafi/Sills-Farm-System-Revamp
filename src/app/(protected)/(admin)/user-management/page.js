@@ -11,7 +11,7 @@ import {
   Search,
   SquarePen,
 } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../../FarmLayout";
 
 const demoUsers = [
   {

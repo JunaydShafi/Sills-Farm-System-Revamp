@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { ChartNoAxesColumn, Filter } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import FormWindow, { ExitButton, styles } from "../../FormWindow";
 
 // Demo pay records (Sprint 1 - no database yet)
 const demoPayRecords = [

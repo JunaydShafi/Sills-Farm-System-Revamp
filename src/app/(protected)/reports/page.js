@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { ChartColumnIncreasing, Search } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import FormWindow, { ExitButton, styles } from "../../FormWindow";
 
 const reportOptions = ["Report 1", "Report 2", "Report 3", "Cash Receipts"];
 

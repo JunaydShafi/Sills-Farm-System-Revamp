@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { ChartColumnIncreasing, ArrowUpDown } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import FormWindow, { ExitButton, styles } from "../../FormWindow";
 
 // Demo sales history (Sprint 1 - no database yet)
 const demoSales = [

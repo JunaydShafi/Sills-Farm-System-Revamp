@@ -1,7 +1,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 const reports = [
   {

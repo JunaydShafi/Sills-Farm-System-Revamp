@@ -14,8 +14,8 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
-import ConfirmDialog from "@/app/ConfirmDialog";
+import FormWindow, { ExitButton, styles } from "../../FormWindow";
+import ConfirmDialog from "../../ConfirmDialog";
 import EmployeePrintView from "./EmployeePrintView";
 import {
   normalizeEmployee,

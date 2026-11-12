@@ -120,3 +120,20 @@ model bag_sales {
 
   @@index([inventory_item_id])
 }
+
+//Database to store vendor data for Sills Farm
+//Vendor Id should be unique to prevent duplicates and conflicts
+model vendors {
+  id            Int           @id @default(autoincrement())            
+  vendor_id     String        @unique @db.VarChar(30)
+  name          String        @db.VarChar(150)
+  pNum          String        @db.VarChar(25)
+  street        String        @db.VarChar(300)
+  city          String        @db.VarChar(150)
+  state         String        @db.VarChar(2)
+  zip           String        @db.VarChar(10)
+  taxId         Boolean       @default(false) @db.Boolean
+  defaultAcc    String        @db.VarChar(30)
+  custAccId     String        @db.VarChar(20)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+}

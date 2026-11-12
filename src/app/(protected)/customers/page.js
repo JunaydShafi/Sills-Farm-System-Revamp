@@ -5,7 +5,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search, ChevronDown } from "lucide-react";
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 //All hardcoded placeholder info
 const customers = [
