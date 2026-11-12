@@ -81,7 +81,7 @@ export default function BillPage() {
             loadData();
 
             return () => { cancelled = true; };
-    },
+    },[]
     );
     const vendorNames = useMemo(
         () => new Map(vendors.map((vendor) => [String(vendor.id), vendor.name])),
