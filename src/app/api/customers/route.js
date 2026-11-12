@@ -262,6 +262,8 @@ export async function GET(request) {
     const sortFields = {
       code: "customer_code",
       name: "name",
+      status: "status",
+
     };
 
     if (

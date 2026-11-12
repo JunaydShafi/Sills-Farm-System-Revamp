@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DropdownMenu, AlertDialog, Dialog } from "radix-ui";
 import { UsaStates } from "usa-states";
 import Link from "next/link";
+import { DropdownMenu } from "radix-ui";
 import {
   Search,
   ArrowUpDown,
@@ -14,6 +14,8 @@ import {
   Pencil,
 } from "lucide-react";
 import CustomerLayout from "@/app/CustomerLayout";
+import CustomerStatus from "./_components/CustomerStatus";
+import EditCustomer from "./_components/EditCustomer";
 const usStates = new UsaStates().states;
 
 // Show a small number of page buttons, even for large databases.
@@ -531,7 +533,6 @@ export default function CustomersPage() {
           </div>
         )}
 
-        {/* Customers table */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse border border-gray-500 text-left text-sm text-black">
             <thead className="bg-gray-100">
@@ -542,7 +543,7 @@ export default function CustomersPage() {
                   { label: "City" },
                   { label: "State" },
                   { label: "Phone" },
-                  { label: "Status" },
+                  { label: "Status", field: "status" },
                 ].map((column) => (
                   <th
                     key={column.label}
@@ -706,7 +707,6 @@ export default function CustomersPage() {
           </table>
         </div>
 
-        {/* Pagination and record count */}
         {hasLoaded && !error && (
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-sm text-black">
             <p>
@@ -781,271 +781,27 @@ export default function CustomersPage() {
       </div>
 
       {/* Customer status confirmation dialog */}
-      <AlertDialog.Root
-        open={pendingCustomer !== null}
-        onOpenChange={(open) => {
-          if (!open) cancelStatusChange();
-        }}
-      >
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-[100] bg-black/50" />
-
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 text-black shadow-2xl">
-            <AlertDialog.Title className="mb-3 text-xl font-bold">
-              {pendingStatus === "Inactive"
-                ? "Deactivate Customer?"
-                : "Reactivate Customer?"}
-            </AlertDialog.Title>
-
-            <AlertDialog.Description className="mb-5 text-sm leading-6 text-gray-600">
-              Are you sure you want to{" "}
-              {pendingStatus === "Inactive" ? "deactivate" : "reactivate"}{" "}
-              <strong>
-                {pendingCustomer?.name} ({pendingCustomer?.customer_code})
-              </strong>
-              ?
-              <span className="mt-2 block">
-                {pendingStatus === "Inactive"
-                  ? "The customer will be marked Inactive, but their information will remain in the database."
-                  : "The customer will be marked Active again."}
-              </span>
-            </AlertDialog.Description>
-
-            {actionError && (
-              <p role="alert" className="mb-4 text-sm font-medium text-red-700">
-                {actionError}
-              </p>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <AlertDialog.Cancel asChild>
-                <button
-                  type="button"
-                  disabled={updatingStatusId !== null}
-                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-              </AlertDialog.Cancel>
-
-              <AlertDialog.Action asChild>
-                <button
-                  type="button"
-                  disabled={updatingStatusId !== null}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    void confirmStatusChange();
-                  }}
-                  className={`rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-50 ${
-                    pendingStatus === "Inactive"
-                      ? "bg-red-700 hover:bg-red-800"
-                      : "bg-green-700 hover:bg-green-800"
-                  }`}
-                >
-                  {updatingStatusId !== null
-                    ? "Saving..."
-                    : pendingStatus === "Inactive"
-                      ? "Deactivate Customer"
-                      : "Reactivate Customer"}
-                </button>
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
+      <CustomerStatus
+        pendingCustomer={pendingCustomer}
+        pendingStatus={pendingStatus}
+        updatingStatusId={updatingStatusId}
+        actionError={actionError}
+        cancelStatusChange={cancelStatusChange}
+        confirmStatusChange={confirmStatusChange}
+      />
 
       {/* Edit Customer dialog */}
-      <Dialog.Root
-        open={editingCustomer !== null}
-        onOpenChange={(open) => {
-          if (!open) closeEditCustomer();
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/50" />
-
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-6 text-black shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <Dialog.Title className="text-2xl font-bold">
-                  Edit Customer
-                </Dialog.Title>
-
-                <Dialog.Description className="mt-1 text-sm text-gray-600">
-                  Update customer information. All fields are required.
-                </Dialog.Description>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeEditCustomer}
-                disabled={savingEdit}
-                aria-label="Close edit customer dialog"
-                className="rounded-md p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
-              >
-                <X size={20} aria-hidden="true" />
-              </button>
-            </div>
-
-            {editForm && (
-              <form onSubmit={saveEditCustomer} noValidate>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {[
-                    {
-                      field: "code",
-                      label: "Customer Code",
-                      maxLength: 30,
-                    },
-                    {
-                      field: "name",
-                      label: "Customer Name",
-                      maxLength: 150,
-                    },
-                    {
-                      field: "address",
-                      label: "Address",
-                      maxLength: 255,
-                    },
-                    {
-                      field: "city",
-                      label: "City",
-                      maxLength: 100,
-                    },
-                    {
-                      field: "zip",
-                      label: "ZIP Code",
-                      maxLength: 10,
-                    },
-                    {
-                      field: "phone",
-                      label: "Phone",
-                      maxLength: 25,
-                    },
-                  ].map(({ field, label, maxLength }) => (
-                    <div
-                      key={field}
-                      className={field === "address" ? "sm:col-span-2" : ""}
-                    >
-                      <label
-                        htmlFor={`edit-${field}`}
-                        className="mb-1 block text-sm font-semibold"
-                      >
-                        {label} *
-                      </label>
-
-                      <input
-                        id={`edit-${field}`}
-                        type="text"
-                        required
-                        maxLength={maxLength}
-                        value={editForm[field]}
-                        onChange={(event) =>
-                          handleEditChange(field, event.target.value)
-                        }
-                        aria-invalid={Boolean(editErrors[field])}
-                        aria-describedby={
-                          editErrors[field] ? `edit-${field}-error` : undefined
-                        }
-                        disabled={savingEdit}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black focus:border-green-700 focus:outline-none disabled:opacity-60"
-                      />
-
-                      {editErrors[field] && (
-                        <p
-                          id={`edit-${field}-error`}
-                          className="mt-1 text-xs text-red-700"
-                        >
-                          {editErrors[field]}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-
-                  <div>
-                    <label
-                      htmlFor="edit-state"
-                      className="mb-1 block text-sm font-semibold"
-                    >
-                      State *
-                    </label>
-
-                    <select
-                      id="edit-state"
-                      required
-                      value={editForm.state.toUpperCase()}
-                      onChange={(event) =>
-                        handleEditChange("state", event.target.value)
-                      }
-                      disabled={savingEdit}
-                      aria-invalid={Boolean(editErrors.state)}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-black focus:border-green-700 focus:outline-none disabled:opacity-60"
-                    >
-                      <option value="">Select a state</option>
-
-                      {usStates.map((state) => (
-                        <option
-                          key={state.abbreviation}
-                          value={state.abbreviation}
-                        >
-                          {state.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    {editErrors.state && (
-                      <p className="mt-1 text-xs text-red-700">
-                        {editErrors.state}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold">
-                      Status
-                    </label>
-
-                    <div className="rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm">
-                      {editForm.status}
-                    </div>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                      Change status using the Customers table.
-                    </p>
-                  </div>
-                </div>
-
-                {actionError && (
-                  <p
-                    role="alert"
-                    className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800"
-                  >
-                    {actionError}
-                  </p>
-                )}
-
-                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeEditCustomer}
-                    disabled={savingEdit}
-                    className="rounded-lg border border-gray-300 px-5 py-2 font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={savingEdit}
-                    className="rounded-lg bg-green-700 px-5 py-2 font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingEdit ? "Saving..." : "Save Changes"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <EditCustomer
+        editingCustomer={editingCustomer}
+        editForm={editForm}
+        editErrors={editErrors}
+        savingEdit={savingEdit}
+        actionError={actionError}
+        closeEditCustomer={closeEditCustomer}
+        handleEditChange={handleEditChange}
+        saveEditCustomer={saveEditCustomer}
+        usStates={usStates}
+      />
     </CustomerLayout>
   );
 }
