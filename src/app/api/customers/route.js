@@ -177,3 +177,184 @@ export async function POST(request) {
     );
   }
 }
+// Retrieve customers with server-side search, filtering,
+// sorting, and pagination.
+export async function GET(request) {
+  try {
+    // Require an authenticated user.
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Authentication required." },
+        { status: 401 },
+      );
+    }
+
+    // Confirm that the user is active and authorized.
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: { role: true, status: true },
+    });
+
+    if (!user || user.status !== "Active") {
+      return NextResponse.json(
+        { error: "Account is not active." },
+        { status: 403 },
+      );
+    }
+
+    if (!["Administrator", "Employee"].includes(user.role)) {
+      return NextResponse.json(
+        { error: "You do not have permission to view customers." },
+        { status: 403 },
+      );
+    }
+
+    // Read query parameters.
+    const { searchParams } = new URL(request.url);
+
+    const search = (searchParams.get("search") || "").trim();
+    const status = searchParams.get("status") || "All";
+    const sortField = searchParams.get("sortField") || "name";
+    const sortDirection = searchParams.get("sortDirection") || "asc";
+
+    // Validate pagination parameters before querying the database.
+    const pageValue = searchParams.get("page") || "1";
+    const pageSizeValue = searchParams.get("pageSize") || "5";
+
+    if (!/^[1-9]\d*$/.test(pageValue) || !/^[1-9]\d*$/.test(pageSizeValue)) {
+      return NextResponse.json(
+        { error: "Invalid pagination parameters." },
+        { status: 400 },
+      );
+    }
+
+    const page = Number(pageValue);
+    const pageSize = Number(pageSizeValue);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize > 100
+    ) {
+      return NextResponse.json(
+        { error: "Invalid pagination parameters." },
+        { status: 400 },
+      );
+    }
+
+    if (search.length > 150) {
+      return NextResponse.json(
+        { error: "Search text is too long." },
+        { status: 400 },
+      );
+    }
+
+    if (!["All", "Active", "Inactive"].includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid customer status filter." },
+        { status: 400 },
+      );
+    }
+
+    // Only allow sorting by supported database columns.
+    const sortFields = {
+      code: "customer_code",
+      name: "name",
+      status: "status",
+
+    };
+
+    if (
+      !Object.hasOwn(sortFields, sortField) ||
+      !["asc", "desc"].includes(sortDirection)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid sorting parameters." },
+        { status: 400 },
+      );
+    }
+
+    // Apply search and status filtering in PostgreSQL.
+    const where = {
+      ...(search && {
+        OR: [
+          {
+            customer_code: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            name: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        ],
+      }),
+      ...(status !== "All" && { status }),
+    };
+
+    const skip = (page - 1) * pageSize;
+
+    if (!Number.isSafeInteger(skip)) {
+      return NextResponse.json(
+        { error: "Invalid page number." },
+        { status: 400 },
+      );
+    }
+
+    // Retrieve only the requested records and total matching count.
+    const [customers, total] = await prisma.$transaction([
+      prisma.customers.findMany({
+        where,
+        select: {
+          id: true,
+          customer_code: true,
+          name: true,
+          address: true,
+          city: true,
+          state: true,
+          zip: true,
+          phone: true,
+          status: true,
+          created_at: true,
+        },
+        orderBy: [{ [sortFields[sortField]]: sortDirection }, { id: "asc" }],
+        skip,
+        take: pageSize,
+      }),
+      prisma.customers.count({ where }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    // Return the current page and pagination information.
+    return NextResponse.json(
+      {
+        customers,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages,
+        },
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, no-store",
+        },
+      },
+    );
+  } catch (error) {
+    console.error("Customer retrieval failed:", error);
+
+    return NextResponse.json(
+      { error: "Unable to retrieve customers." },
+      { status: 500 },
+    );
+  }
+}
