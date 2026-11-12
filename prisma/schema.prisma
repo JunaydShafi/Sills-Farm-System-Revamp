@@ -198,3 +198,17 @@ model vendors {
   custAccId     String        @db.VarChar(20)
   created_at    DateTime      @default(now()) @db.Timestamptz(6)
 }
+
+//Database to store Bill information
+//Bill id should be unique to prevent duplicates and conflicts
+model bills {
+  id            Int           @id @default(autoincrement())
+  vendor_id     String        @db.VarChar(30)
+  invoiceNum    String        @unique @db.VarChar(30)
+  dateIssued    DateTime      @db.Date
+  dueDate       DateTime      @db.Date
+  description   String        @db.VarChar(300)
+  amountOwed    Decimal       @db.Decimal(12, 2)
+  accNum        String        @db.VarChar(20)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+}
