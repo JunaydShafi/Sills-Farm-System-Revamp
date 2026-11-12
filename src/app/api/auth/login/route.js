@@ -112,6 +112,16 @@ export async function POST(request) {
     // Create the authenticated session.
     await createSession(user.id);
 
+    // Record the user's most recent successful login.
+    await prisma.users.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        last_login: new Date(),
+      },
+    });
+
     // Reset the failed-attempt counter.
     await clearFailedLogins(cleanUsername);
 

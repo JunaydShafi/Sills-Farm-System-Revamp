@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import SidebarLayout, { PageTitle, Pagination } from "../../../SidebarLayout";
+import SidebarLayout, { PageTitle, Pagination } from "../../SidebarLayout";
 
 const demoInvoiced = [
   { invoice: "INV-1001", customer: "Green Valley Foods", checkDate: "09/22/26", checkNumber: "4101", amountDue: "2,400.00", termDisc: "48.00", amountPaid: "2,352.00" },
