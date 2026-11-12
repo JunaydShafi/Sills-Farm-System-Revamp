@@ -1,18 +1,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChartNoAxesColumn, Filter } from "lucide-react";
-import FormWindow, { ExitButton, styles } from "../../FormWindow";
+import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import { apiRequest } from "@/lib/apiClient";
+import { multipliers } from "@/lib/payCalc";
 
-// Demo pay records (Sprint 1 - no database yet)
-const demoPayRecords = [
-  { id: 1, payDate: "2026-01-15", startDate: "2026-01-01", endDate: "2026-01-15", name: "John Doe", payType: "Regular", hours: 80, rate: 22.0 },
-  { id: 2, payDate: "2026-01-31", startDate: "2026-01-16", endDate: "2026-01-31", name: "John Doe", payType: "Regular", hours: 80, rate: 22.0 },
-  { id: 3, payDate: "2026-01-31", startDate: "2026-01-16", endDate: "2026-01-31", name: "John Doe", payType: "Overtime", hours: 6, rate: 33.0 },
-  { id: 4, payDate: "2026-01-15", startDate: "2026-01-01", endDate: "2026-01-15", name: "Jane Doe", payType: "Regular", hours: 80, rate: 24.5 },
-  { id: 5, payDate: "2026-02-15", startDate: "2026-02-01", endDate: "2026-02-15", name: "Robert Garcia", payType: "Holiday", hours: 8, rate: 39.5 },
-];
+// Pay records come from PostgreSQL through /api/payroll (SFBMSR-289).
 
 const payTypes = ["Regular", "Overtime", "Holiday"];
 
@@ -36,9 +31,25 @@ function money(value) {
   });
 }
 
-function applyFilters(filters) {
-  return demoPayRecords
-    .map((row) => ({ ...row, total: row.hours * row.rate }))
+// Each saved payroll record becomes one row per pay type with hours entered
+function toRows(record) {
+  return payTypes
+    .filter((type) => record.hours[type] > 0)
+    .map((type) => ({
+      id: `${record.id}-${type}`,
+      payDate: record.payDate,
+      startDate: record.periodStart,
+      endDate: record.periodEnd,
+      name: record.name,
+      payType: type,
+      hours: record.hours[type],
+      rate: record.payRate * multipliers[type],
+      total: record.amounts[type],
+    }));
+}
+
+function applyFilters(records, filters) {
+  return records
     .filter((row) => {
       if (filters.fromDate && row.payDate < filters.fromDate) return false;
       if (filters.toDate && row.payDate > filters.toDate) return false;
@@ -54,7 +65,37 @@ function applyFilters(filters) {
 
 export default function PayQueryPage() {
   const [filters, setFilters] = useState(emptyFilters);
-  const [rows, setRows] = useState(() => applyFilters(emptyFilters));
+  const [records, setRecords] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  // Load saved pay records (newest first) when the page opens
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { ok, data } = await apiRequest("/api/payroll");
+      if (cancelled) {
+        return;
+      }
+
+      setLoading(false);
+
+      if (!ok) {
+        setLoadError(data.error ?? "Unable to load pay records.");
+        return;
+      }
+
+      const loaded = data.records.flatMap(toRows);
+      setRecords(loaded);
+      setRows(loaded);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateFilter(key, value) {
     setFilters((previous) => ({ ...previous, [key]: value }));
@@ -62,13 +103,14 @@ export default function PayQueryPage() {
 
   function handleFilter(event) {
     event.preventDefault();
-    setRows(applyFilters(filters));
+    setRows(applyFilters(records, filters));
   }
 
   const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
 
   return (
     <FormWindow
+      showPrototypeNote={false}
       title="Payroll Query"
       icon={ChartNoAxesColumn}
       footer={
@@ -175,7 +217,12 @@ export default function PayQueryPage() {
                   colSpan={columns.length}
                   className="px-3 py-10 text-center text-sm text-gray-500"
                 >
-                  No pay records match these filters.
+                  {loading
+                    ? "Loading pay records…"
+                    : loadError ||
+                      (records.length === 0
+                        ? "No pay records yet. Payments saved on Pay Employees appear here."
+                        : "No pay records match these filters.")}
                 </td>
               </tr>
             )}
