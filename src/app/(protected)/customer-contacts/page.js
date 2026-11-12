@@ -1,7 +1,7 @@
 // Sprint 1 placeholder for the Customer Contacts page.
 // Functionality will be determined after clarification from the client.
 
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 export default function CustomerContactsPage() {
   return (

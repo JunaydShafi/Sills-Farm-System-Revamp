@@ -1,15 +1,18 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChartColumnIncreasing, Search } from "lucide-react";
 import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import { apiRequest } from "@/lib/apiClient";
 
+// Report names are placeholders until the Product Owner confirms the list
 const reportOptions = ["Report 1", "Report 2", "Report 3", "Cash Receipts"];
 
-// Placeholder dropdown choices (Sprint 1 - no database yet)
-const demoNames = ["All Customers", "Acme Foods", "Valley Grocers", "Sunrise Mills"];
-const demoProducts = ["All Products", "Popcorn", "Wheat", "Hay Bales"];
+// Customer and product choices come from PostgreSQL through
+// /api/report-options (SFBMSR-291)
+const allCustomers = "All Customers";
+const allProducts = "All Products";
 
 // Dark green panel heading used by both boxes
 function Panel({ title, children }) {
@@ -28,10 +31,36 @@ export default function ReportsPage() {
   const [params, setParams] = useState({
     startDate: "",
     endDate: "",
-    name: demoNames[0],
-    product: demoProducts[0],
+    name: allCustomers,
+    product: allProducts,
   });
+  const [customerNames, setCustomerNames] = useState([allCustomers]);
+  const [productNames, setProductNames] = useState([allProducts]);
   const [message, setMessage] = useState("");
+
+  // Load the customer and product dropdown choices when the page opens
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { ok, data } = await apiRequest("/api/report-options");
+      if (cancelled) {
+        return;
+      }
+
+      if (!ok) {
+        setMessage(data.error ?? "Unable to load customers and products.");
+        return;
+      }
+
+      setCustomerNames([allCustomers, ...data.customers.map((item) => item.name)]);
+      setProductNames([allProducts, ...data.products.map((item) => item.name)]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateParam(key, value) {
     setParams((previous) => ({ ...previous, [key]: value }));
@@ -45,12 +74,13 @@ export default function ReportsPage() {
     }
 
     setMessage(
-      `Sprint 1 prototype: ${report} is not generated yet. Report data will be added in a future sprint.`
+      `${report} isn't available yet. Its contents are waiting on confirmation from the Product Owner.`
     );
   }
 
   return (
     <FormWindow
+      showPrototypeNote={false}
       title="Sills Farms Reports"
       icon={ChartColumnIncreasing}
       maxWidth="max-w-4xl"
@@ -150,8 +180,9 @@ export default function ReportsPage() {
                 onChange={(event) => updateParam("name", event.target.value)}
                 className={styles.input}
               >
-                {demoNames.map((name) => (
-                  <option key={name}>{name}</option>
+                {customerNames.map((name, nameIndex) => (
+                  // Index in the key: two customers can share a name
+                  <option key={`${nameIndex}-${name}`}>{name}</option>
                 ))}
               </select>
             </div>
@@ -171,8 +202,8 @@ export default function ReportsPage() {
                 }
                 className={styles.input}
               >
-                {demoProducts.map((product) => (
-                  <option key={product}>{product}</option>
+                {productNames.map((product, productIndex) => (
+                  <option key={`${productIndex}-${product}`}>{product}</option>
                 ))}
               </select>
             </div>

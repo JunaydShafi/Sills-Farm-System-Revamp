@@ -14,7 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../../FarmLayout";
 
 const USERS_PER_PAGE = 10;
 

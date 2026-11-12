@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { Banknote, ArrowDown } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 //Demo data (database isn't implemented yet)
 const vendorName = [

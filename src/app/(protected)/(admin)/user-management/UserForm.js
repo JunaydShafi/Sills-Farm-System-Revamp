@@ -15,7 +15,7 @@ import {
   RotateCcw,
   Save,
 } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../../FarmLayout";
 
 const emptyForm = {
   employee: "",

@@ -2,14 +2,14 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
-import { prisma } from "@/lib/prisma";
-import { createSession } from "@/lib/session";
+import { prisma } from "../../../../lib/prisma";
+import { createSession } from "../../../../lib/session";
 
 import {
   checkLoginLimit,
   recordFailedLogin,
   clearFailedLogins,
-} from "@/lib/loginRateLimit";
+} from "../../../../lib/loginRateLimit";
 
 export const runtime = "nodejs";
 

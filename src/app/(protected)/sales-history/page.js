@@ -1,17 +1,12 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChartColumnIncreasing, ArrowUpDown } from "lucide-react";
 import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
+import { apiRequest } from "@/lib/apiClient";
 
-// Demo sales history (Sprint 1 - no database yet)
-const demoSales = [
-  { id: 1, orderDate: "2001-01-01", orderNo: "0001", type: "Regular", description: "Popcorn", proc: "", customer: "Acme Foods", factor: "", quantity: 45, lbs: 450, price: 4500.0, total: 4500.0 },
-  { id: 2, orderDate: "2001-01-01", orderNo: "0002", type: "Regular", description: "Popcorn", proc: "", customer: "Valley Grocers", factor: "", quantity: 32, lbs: 320, price: 320.0, total: 3200.0 },
-  { id: 3, orderDate: "2001-01-02", orderNo: "0003", type: "Bulk", description: "Wheat", proc: "Acme", customer: "Sunrise Mills", factor: "", quantity: 7000, lbs: 700, price: 73000.0, total: 73000.0 },
-  { id: 4, orderDate: "2001-01-02", orderNo: "0004", type: "Regular", description: "Hay Bales", proc: "", customer: "Green Acres Co.", factor: "", quantity: 29, lbs: 209, price: 209.0, total: 2090.0 },
-];
+// Sales come from PostgreSQL through /api/sales-history (SFBMSR-290).
 
 const columns = [
   { key: "orderDate", label: "Order Date" },
@@ -27,7 +22,17 @@ const columns = [
   { key: "total", label: "Total", money: true },
 ];
 
+// Shown for columns that need the orders and invoices tables (not built yet)
+const notAvailable = "—";
+
+function display(value) {
+  return value === null || value === undefined || value === "" ? notAvailable : value;
+}
+
 function money(value) {
+  if (value === null || value === undefined) {
+    return notAvailable;
+  }
   return value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -35,12 +40,46 @@ function money(value) {
 }
 
 export default function HistoricalSalesPage() {
-  // Click a column heading to sort by it; click again to reverse
-  const [sort, setSort] = useState({ key: "orderDate", ascending: true });
+  // Newest sales first; click a column heading to sort by it, again to reverse
+  const [sort, setSort] = useState({ key: "orderDate", ascending: false });
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  const rows = [...demoSales].sort((a, b) => {
+  // Load recorded sales when the page opens
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { ok, data } = await apiRequest("/api/sales-history");
+      if (cancelled) {
+        return;
+      }
+
+      setLoading(false);
+
+      if (!ok) {
+        setLoadError(data.error ?? "Unable to load sales history.");
+        return;
+      }
+
+      setSales(data.sales);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rows = [...sales].sort((a, b) => {
     const first = a[sort.key];
     const second = b[sort.key];
+
+    // Empty values always sort last
+    if (first === null && second === null) return 0;
+    if (first === null) return 1;
+    if (second === null) return -1;
+
     const order =
       typeof first === "number"
         ? first - second
@@ -57,6 +96,7 @@ export default function HistoricalSalesPage() {
 
   return (
     <FormWindow
+      showPrototypeNote={false}
       title="Historical Sales"
       icon={ChartColumnIncreasing}
       footer={
@@ -96,14 +136,32 @@ export default function HistoricalSalesPage() {
               <tr key={row.id} className="hover:bg-gray-50">
                 {columns.map((column) => (
                   <td key={column.key} className={styles.tableCell}>
-                    {column.money ? money(row[column.key]) : row[column.key]}
+                    {column.money ? money(row[column.key]) : display(row[column.key])}
                   </td>
                 ))}
               </tr>
             ))}
+
+            {rows.length === 0 && (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-10 text-center text-sm text-gray-500"
+                >
+                  {loading
+                    ? "Loading sales history…"
+                    : loadError || "No sales have been recorded yet."}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      <p className="mt-2 text-xs text-gray-600">
+        Order #, Type, Customer, Price, and Total fill in once orders and invoices
+        are added to the system.
+      </p>
     </FormWindow>
   );
 }

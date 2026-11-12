@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Printer, X } from "lucide-react";
-import { styles } from "@/app/FormWindow";
+import { styles } from "../../FormWindow";
 
 // Printable views for the Employees page:
 //   - "notification": a notice for the current employee

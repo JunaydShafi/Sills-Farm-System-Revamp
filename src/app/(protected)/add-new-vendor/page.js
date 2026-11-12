@@ -1,12 +1,13 @@
-//Sprint 1 placeholder for vendor
-//Real vendor data won't be saved until database implementation
-
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Form } from "lucide-react";
 import Link from "next/link";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
+
+import { UsaStates } from "usa-states";
+
+const usStates = new UsaStates().states;
 
 const initialForm = {
     id: "",
@@ -15,45 +16,204 @@ const initialForm = {
     street: "",
     city: "",
     state: "",
-    zipCode: "",
+    zip: "",
     taxId: "",
     defaultAcc: "",
-    custAccId: ""
+    custAccId: "",
 };
 
-export default function AddNewVendorPage() {
-    //Will store the vendor information for adding new vendors
-    const [form, setForm] = useState(initialForm);
-    const [input, setinput] = useState({taxId: false});
-    const [message, setMessage] = useState("");
+const requiredFields = {
+  id: "Vendor Id",
+  name: "Vendor Name",
+  pNum: "Phone",
+  street: "Street Address",
+  city: "City",
+  state: "State",
+  zip: "Zip Code",
+  defaultAcc: "Account Number",
+  custAccId: "Account Id",
+};
 
-     // Updates the corresponding field whenever the user enters information.
-    function updateField(event) {
-    const { name, value } = event.target;
+const maxLengths = {
+  id: 30,
+  name: 150,
+  street: 300,
+  city: 150,
+  state: 2,
+  zip: 10,
+  pNum: 25,
+  defaultAcc: 30,
+  custAccId: 20,
+};
 
-    setForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+// Validate customer information before submission.
+function validateForm(form) {
+  const errors = {};
 
-    setinputs((value) => ({
-      ...value,
-      [name]: value
-    }))
+  Object.entries(requiredFields).forEach(([field, label]) => {
+    const value = form[field].trim();
+
+    if (!value) {
+      errors[field] = `${label} is required.`;
+    } else if (value.length > maxLengths[field]) {
+      errors[field] = `${label} is too long.`;
+    }
+  });
+
+  // ZIP codes must contain exactly five digits.
+  if (form.zip.trim() && !/^\d{5}$/.test(form.zip.trim())) {
+    errors.zip = "ZIP Code must contain exactly 5 digits.";
   }
 
-    function handleSubmit(event) {
+  // Accept common US phone formats containing 10 digits.
+  const phone = form.pNum.trim();
+  const phoneDigits = phone.replace(/\D/g, "");
+
+  if (phone && (!/^[\d\s()+.-]+$/.test(phone) || phoneDigits.length !== 10)) {
+    errors.pNum = "Enter a valid 10-digit phone number.";
+  }
+
+  // Check whether the selected state is valid.
+  if (
+    form.state &&
+    !usStates.some((state) => state.abbreviation === form.state)
+  ) {
+    errors.state = "Please select a valid U.S. state.";
+  }
+
+  return errors;
+}
+
+export default function AddNewVendorPage() {
+  //Will store the vendor information for adding new vendors
+  const [form, setForm] = useState(initialForm);
+  const [errors, setErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [message, setMessage] = useState("");
+  const [serverError, setServerError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [input, setInput] = useState({taxId: false});
+
+     // Updates the corresponding field whenever the user enters information.
+  function updateField(event) {
+    const { name } = event.target;
+    let { value } = event.target;
+
+        // Formating for phone numbers
+    if (name === "pNum") {
+      const digits = value.replace(/\D/g, "").slice(0, 10);
+
+      if (digits.length > 6) {
+        value = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+      } else if (digits.length > 3) {
+        value = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+      } else {
+        value = digits;
+      }
+    }
+
+    
+
+    const updatedForm = {...form, [name]: value};
+
+    setForm(updatedForm);
+    setMessage("");
+    setServerError("");
+
+    if (submitted){
+      setErrors(validateForm(updatedForm))
+    }
+  }
+
+    async function handleSubmit(event) {
     event.preventDefault();
 
-    // Sprint 1 prototype: no database saving yet.
-    setMessage(
-      "Demo only: Vendor information has not been saved."
-    );
+    if (saving) return;
+
+    setSubmitted(true);
+    setServerError("");
+    setMessage("");
+
+    const validationErrors= validateForm(form);
+    setErrors(validationErrors);
+
+      // Reject if any fields are empty
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    setSaving(true);
+
+        try {
+      const response = await fetch("/api/vendors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          ...form,
+          taxId: input.taxId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result.errors) {
+          setErrors(result.errors);
+        }
+
+        setServerError(result.error || "Unable to add vendor.");
+        return;
+      }
+
+      // Vendor was successfully created in PostgreSQL.
+      setMessage("Vendor added successfully!");
+      setForm({ ...initialForm });
+      setInput({ taxId: false});
+      setErrors({});
+      setSubmitted(false);
+    } catch {
+      setServerError("Unable to connect to the server. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const fieldClass =
     "w-full rounded-sm border border-gray-300 bg-white px-4 py-3 text-sm text-black outline-none focus:border-emerald-700";
 
+    // Display consistent input fields and validation messages.
+  function renderInput(label, name, placeholder, type = "text") {
+    return (
+      <div>
+        <label htmlFor={name} className="mb-2 block font-bold">
+          {label} <span className="text-red-700">*</span>
+        </label>
+
+        <input
+          id={name}
+          name={name}
+          type={type}
+          value={form[name]}
+          onChange={updateField}
+          disabled={saving}
+          maxLength={maxLengths[name]}
+          placeholder={placeholder}
+          aria-invalid={Boolean(errors[name])}
+          aria-describedby={errors[name] ? `${name}-error` : undefined}
+          className={`${fieldClass} ${errors[name] ? "border-red-600" : ""}`}
+        />
+
+        {errors[name] && (
+          <p id={`${name}-error`} className="mt-1 text-sm text-red-700">
+            {errors[name]}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <FarmLayout>
@@ -78,11 +238,12 @@ export default function AddNewVendorPage() {
 
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="bg-[#cecece] px-7 py-6"
         >
           <div className="grid grid-cols-1 gap-x-20 gap-y-8 sm:grid-cols-2">
 
-            {/* Vendor Id */}
+            {/* Vendor Id
             <div>
               <label
                 htmlFor="vendor-id"
@@ -99,9 +260,10 @@ export default function AddNewVendorPage() {
                 className={fieldClass}
                 required
               />
-            </div>
+            </div> */}
+            {renderInput("Vendor Id", "id", "Enter vendor id...")}
 
-            {/* Vendor Name */}
+            {/* Vendor Name
             <div>
               <label
                 htmlFor="vendor-name"
@@ -118,7 +280,8 @@ export default function AddNewVendorPage() {
                 className={fieldClass}
                 required
               />
-            </div>
+            </div> */}
+            {renderInput("Vendor Name", "name", "Enter vendor name")}
 
             {/* Street Address */}
             <div>
@@ -131,7 +294,7 @@ export default function AddNewVendorPage() {
               <input
                 id="street-address"
                 name="street"
-                value={form.address}
+                value={form.street}
                 onChange={updateField}
                 placeholder="Enter street address..."
                 className={fieldClass}
@@ -160,25 +323,35 @@ export default function AddNewVendorPage() {
 
             {/* State */}
             <div>
-              <label
-                htmlFor="state"
-                className="mb-2 block font-bold"
-              >
+              <label htmlFor="state" className="mb-2 block font-bold">
                 State <span className="text-red-700">*</span>
               </label>
+
               <select
                 id="state"
                 name="state"
                 value={form.state}
                 onChange={updateField}
-                className={fieldClass}
-                required
+                disabled={saving}
+                aria-invalid={Boolean(errors.state)}
+                aria-describedby={errors.state ? "state-error" : undefined}
+                className={`${fieldClass} ${
+                  errors.state ? "border-red-600" : ""
+                }`}
               >
                 <option value="">Select state...</option>
-                <option value="CA">California</option>
-                <option value="IL">Illinois</option>
-                <option value="FL">Florida</option>
+                {usStates.map((state) => (
+                  <option key={state.abbreviation} value={state.abbreviation}>
+                    {state.name}
+                  </option>
+                ))}
               </select>
+
+              {errors.state && (
+                <p id="state-error" className="mt-1 text-sm text-red-700">
+                  {errors.state}
+                </p>
+              )}
             </div>
 
             {/* ZIP Code */}
@@ -191,7 +364,7 @@ export default function AddNewVendorPage() {
               </label>
               <input
                 id="zip"
-                name="zipCode"
+                name="zip"
                 value={form.zip}
                 onChange={updateField}
                 placeholder="Enter ZIP code..."
@@ -201,7 +374,7 @@ export default function AddNewVendorPage() {
             </div>
 
             {/* Phone */}
-            <div>
+            {/* <div>
               <label
                 htmlFor="phone"
                 className="mb-2 block font-bold"
@@ -218,7 +391,8 @@ export default function AddNewVendorPage() {
                 className={fieldClass}
                 required
               />
-            </div>
+            </div> */}
+            {renderInput("Phone", "pNum", "(XXX)XXX-XXXX", "tel")}
 
             {/* Tax Id */}
             <div>
@@ -233,10 +407,11 @@ export default function AddNewVendorPage() {
                 id="tax"
                 name="taxId"
                 checked={input.taxId}
-                value={form.tax}
-                onChange={updateField}
+                onChange={ (event) => 
+                  setInput({ taxId: event.target.checked })
+                }
                 className={fieldClass}
-                required
+                required = {false}
               />
             </div>
 
@@ -251,7 +426,7 @@ export default function AddNewVendorPage() {
               <input
                 id="default"
                 name="defaultAcc"
-                value={form.default}
+                value={form.defaultAcc}
                 onChange={updateField}
                 placeholder="X-XXXX"
                 className={fieldClass}
@@ -269,7 +444,7 @@ export default function AddNewVendorPage() {
               <input
                 id="custom"
                 name="custAccId"
-                value={form.custom}
+                value={form.custAccId}
                 onChange={updateField}
                 placeholder="XXXX"
                 className={fieldClass}
@@ -289,11 +464,33 @@ export default function AddNewVendorPage() {
 
             <button
               type="submit"
+              disabled={saving}
               className="min-w-40 rounded-lg border border-green-950 bg-[#50966d] px-6 py-2 font-bold text-white hover:bg-green-700"
             >
-              + Add Vendor
+              {saving? "Saving..." : "+ Add Vendor"}
             </button>
           </div>
+
+          {/* Backend error */}
+          {serverError && (
+            <p
+              role="alert"
+              className="mt-4 text-center text-sm font-semibold text-red-700"
+            >
+              {serverError}
+            </p>
+          )}
+
+          {/* Successful database submission */}
+          {message && (
+            <p
+              role="status"
+              className="mt-4 text-center text-sm font-semibold text-green-900"
+            >
+              {message}
+            </p>
+          )}
+
         </form>
       </div>
     </FarmLayout>

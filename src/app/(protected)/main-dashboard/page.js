@@ -2,11 +2,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/session";
+import { prisma } from "../../../lib/prisma";
+import { getSessionUserId } from "../../../lib/session";
 import LogoutButton from "./LogoutButton";
 import AccessDeniedButton from "./AccessDeniedButton";
-import FarmHeader from "@/components/FarmHeader";
+import FarmHeader from "../../../components/FarmHeader";
 
 import {
   ShoppingCart,

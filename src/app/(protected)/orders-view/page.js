@@ -1,8 +1,8 @@
 
 import Link from "next/link";
-import FarmHeader from "@/components/FarmHeader";
-import FarmSidebar from "@/components/FarmSidebar";
-import { getAuthenticatedUser } from "@/lib/authenticated-user";
+import FarmHeader from "../../../components/FarmHeader";
+import FarmSidebar from "../../../components/FarmSidebar";
+import { getAuthenticatedUser } from "../../../lib/authenticated-user";
 
 export default async function Orders_ViewPage() {
  
