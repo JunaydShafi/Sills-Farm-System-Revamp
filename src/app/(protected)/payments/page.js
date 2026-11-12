@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { Search, Banknote } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 const paymentSample = [
     {id: "V001", name: "Valley Farm Supply", invoiceNum: "341424", check: "24690", dueDate: "2026-08-24", paidDate: "2026-08-20", description: "This is a sample desc", amountPaid: "1000"},

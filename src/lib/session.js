@@ -3,7 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma";
 
 const COOKIE_NAME = "sills_farm_session";
 const SESSION_DURATION = 60 * 60 * 8; // 8 hours

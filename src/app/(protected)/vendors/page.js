@@ -1,15 +1,11 @@
-//Placeholder data for Sprint 1
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, ArrowDown } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import { Search, ChevronDown } from "lucide-react";
+import FarmLayout from "../../FarmLayout";
 
-//Placeholeder data table no database
-
-const sampleVendors = [
+const vendors = [
     {
         id: "V001",
         name: "Valley Farm Supply",
@@ -17,10 +13,10 @@ const sampleVendors = [
         street: "123 Harvest Road",
         city: "Vallejo",
         state: "CA",
-        postCode: "94590",
-        taxId: "",
+        zip: "94590",
+        taxId: true,
         defaultAcc: "FS5100",
-        custAccId: "C-2001"
+        custAccId: "C-2001",
     },
     {
         id: "V002",
@@ -29,10 +25,10 @@ const sampleVendors = [
         street: "43 Rat Way",
         city: "Compton",
         state: "CA",
-        postCode: "90210",
-        taxId: "",
+        zip: "90210",
+        taxId: false,
         defaultAcc: "PS3402",
-        custAccId: "C-2002"
+        custAccId: "C-2002",
     },
     {
         id: "V003",
@@ -41,10 +37,10 @@ const sampleVendors = [
         street: "1850 Revolution Street",
         city: "Fresno",
         state: "CA",
-        postCode: "92520",
-        taxId: "",
+        zip: "92520",
+        taxId: true,
         defaultAcc: "DI1233",
-        custAccId: "C-2003"
+        custAccId: "C-2003",
     },
     {
         id: "V004",
@@ -53,50 +49,71 @@ const sampleVendors = [
         street: "1234 Johnny Road",
         city: "Sacramento",
         state: "CA",
-        postCode: "94254",
-        taxId: "",
+        zip: "94254",
+        taxId: false,
         defaultAcc: "SD5400",
-        custAccId: "C-2004"
+        custAccId: "C-2004",
     },
 ];
 
-const uniqueValues = (field) =>
-  [...new Set(sampleVendors.map((record) => record[field]))];
-
-const initialFilters = {
-    id: "",
-    name: "",
-    pNum: "",
-    street: "",
-    city: "",
-    state: "",
-    postCode: "",
-    taxId: "",
-    defaultAcc: "",
-    custAccId:""
-};
-
 export default function VendorsPage() {
-    const [filters, setFilters] = useState(initialFilters);
-    const [appliedFilters, setAppliedFilters] = useState(initialFilters);
     const [search, setSearch] = useState("");
+    const [vendors, setVendors] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    function updateFilter(event) {
-    const { name, value } = event.target;
-    setFilters((previous) => ({ ...previous, [name]: value }));
-  }
+    // Retrieve vendors from the database when the page loads.
+    useEffect(() => {
+        async function fetchVendors() {
+            try {
+                setLoading(true);
+                setError("");
 
-  function handleSearch(event) {
-    event.preventDefault();
-    setAppliedFilters({ ...filters });
-  }
+                const response = await fetch("/api/vendors", {
+                    method: "GET",
+                    cache: "no-store",
+                });
 
-  const filteredVendor = sampleVendors.filter((record) =>
-    (!appliedFilters.name || record.name === appliedFilters.name) &&
-    (!appliedFilters.defaultAcc || record.defaultAcc === appliedFilters.defaultAcc) &&
-    (!appliedFilters.custAccId || record.custAccId >= appliedFilters.custAccId) &&
-    (!appliedFilters.id || record.id <= appliedFilters.id)
-  );
+                const responseText = await response.text();
+
+                console.log("Vendor API Status:", response.status);
+                console.log("Vendor API Response:", responseText);
+
+                let data;
+
+                try {
+                    data = JSON.parse(responseText);
+                } catch (err) {
+                    throw new Error(
+                        `Vendor API returned something other than JSON. Status: ${response.status}. Check the browser console.`
+                    );
+                }
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "Failed to retrieve vendors."
+                    );
+                }
+
+                setVendors(data.vendors || []);
+
+            } catch (err) {
+                console.error("Error fetching vendors:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchVendors();
+    }, []);
+
+    // Filter database vendors by name, ID, or city.
+    const filteredVendors = vendors.filter((vendor) =>
+        vendor.name.toLowerCase().includes(search.toLowerCase()) ||
+        vendor.id.toLowerCase().includes(search.toLowerCase()) ||
+        vendor.city.toLowerCase().includes(search.toLowerCase())
+    );
 
     return (
         <FarmLayout>    
@@ -113,6 +130,7 @@ export default function VendorsPage() {
                         + New Vendor
                     </Link>
                 </div>
+                {/* Vendor Search */}
                 <div className="relative mb-4 max-w-lg">
                     <input
                         type="text"
@@ -133,15 +151,13 @@ export default function VendorsPage() {
                     <thead className="bg-gray-100">
                         <tr>
                             {[
-                                "Vendor Id",
-                                "Vendor Name",
-                                "Address",
-                                "City",
-                                "State",
-                                "Phone",
-                                "Tax Id",
-                                "Default Account",
-                                "Cust Account Id"
+                                 "Vendor Id",
+                                 "Vendor Name",
+                                 "City",
+                                 "State",
+                                 "Phone",
+                                 "Account Id",
+                                 "Tax",
                             ].map((column) => (
                                 <th
                                     key={column}
@@ -151,21 +167,85 @@ export default function VendorsPage() {
                                     {column}
                                     {(column === "Vendor Id" ||
                                         column === "Vendor Name") && (
-                                        <ArrowDown size={14} />
+                                        <ChevronDown size={14} />
                                     )}
                                     </div>
                                 </th>
                             ))}
                         </tr>
                     </thead>
+
+                    <tbody>
+                        {loading && (
+                            <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center">
+                                    Loading vendors...
+                                </td>
+                            </tr>
+                        )}
+
+                        {error && (
+                            <tr>
+                                <td colSpan={7} className="px-4 py-8 text-center text-red-600">
+                                    {error}
+                                </td>
+                            </tr>
+                        )}
+
+                        {!loading && !error && filteredVendors.map((vendor, index) => (
+                            <tr
+                            key={vendor.id}
+                            className={index % 2 === 0 ? "bg-white" : "bg-gray-100"}
+                            >
+                            <td className="border-x border-gray-500 px-3 py-4 font-semibold">
+                                {vendor.id}
+                            </td>
+                            <td className="border-x border-gray-500 px-3 py-4 font-semibold">
+                                {vendor.name}
+                            </td>
+                            <td className="border-x border-gray-500 px-3 py-4">
+                                {vendor.city}
+                            </td>
+                            <td className="border-x border-gray-500 px-3 py-4">
+                                {vendor.state}
+                            </td>
+                            <td className="border-x border-gray-500 px-3 py-4">
+                                {vendor.pNum}
+                            </td>
+                            <td className="border-x border-gray-500 px-3 py-4">
+                                {vendor.custAccId}
+                            </td>
+                            <td className="border-x border-gray-500 px-2 py-3">
+                                <span
+                                className={`block rounded-md px-2 py-1 font-semibold ${
+                                    vendor.taxId === true
+                                    ? "bg-green-100"
+                                    : "bg-gray-200"
+                                }`}
+                                >
+                                {vendor.taxId ? "Yes" : "No"}
+                                </span>
+                            </td>
+                            </tr>
+                        ))}
+                        {!loading && !error && filteredVendors.length === 0 && (
+                            <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center">
+                                No matching vendors found.
+                            </td>
+                            </tr>
+                        )}
+                    </tbody>
+
+
                 </table>
                 </div>
 
                 {/* Temporary pagination display */}
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-4 text-sm">
                     <p>
-                        Showing {filteredVendor.length ? 1 : 0}-{filteredVendor.length} of{" "}
-                        {filteredVendor.length} Records
+                        Showing {filteredVendors.length ? 1 : 0}-{filteredVendors.length} of{" "}
+                        {filteredVendors.length} Records
                     </p>
 
                     <div className="flex items-center gap-4">

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Search, Plus } from "lucide-react";
-import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
+import SidebarLayout, { PageTitle, Pagination } from "../../SidebarLayout";
 
 const demoBagRecords = [
   { id: 1, date: "9/14/2026", quantity: 80, size: 25, product: "Black Beans", proc: 1001 },

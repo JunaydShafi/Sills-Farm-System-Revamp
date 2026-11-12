@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Search } from "lucide-react";
-import SidebarLayout, { PageTitle } from "@/app/SidebarLayout";
+import SidebarLayout, { PageTitle } from "../../SidebarLayout";
 
 const columns = [
   { key: "proc", label: "Proc", align: "text-right", headAlign: "text-left" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
+import SidebarLayout, { PageTitle, Pagination } from "../../SidebarLayout";
 
 const demoProcRecords = [
   { proc: 1001, description: "Black Beans", product: "BB", mStatus: "Clean", closeError: "", outLb: 1500, rerunLb: "", soldLbs: 300, bulkInvLbs: 1200, closed: false },

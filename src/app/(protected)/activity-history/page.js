@@ -1,7 +1,7 @@
 
 import Link from "next/link";
 import { History, ArrowLeft, Clock } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 export default function ActivityHistoryPage() {
   return (
