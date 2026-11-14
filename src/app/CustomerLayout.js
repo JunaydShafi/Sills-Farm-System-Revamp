@@ -7,28 +7,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import {
-  House,
-  Users,
-  List,
-  Tag,
-  FileText,
-  Package,
-  ChevronDown,
-} from "lucide-react";
 
-const navigation = [
-  { label: "Home", href: "/main-dashboard", icon: House },
-  { label: "Customers", href: "/customers", icon: Users },
-  { label: "Products", href: "/customer-products", icon: List },
-  { label: "Price List", href: "/customer-prices", icon: Tag },
-  { label: "Contacts", href: "/customer-contacts", icon: FileText },
-  { label: "Sale Items", href: "/sale-items", icon: Package },
-  { label: "Sale Item Prices", href: "/sale-prices", icon: Tag },
-];
 
 export default function CustomerLayout({ children }) {
-  const pathname = usePathname();
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-100">
