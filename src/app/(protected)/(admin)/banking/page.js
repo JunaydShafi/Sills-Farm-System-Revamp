@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
+import SidebarLayout, { PageTitle, Pagination } from "../../../SidebarLayout";
 
 const demoTransactions = [
   { date: "09/14/26", ref: "DEP-1001", type: "Deposit", description: "Black bean sales", deposit: "4,800.00", payment: "", balance: "29,800.00" },

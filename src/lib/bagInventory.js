@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma";
 
 // One Bag Inventory row per process, product and bag size.
 // Bags Made = quantity + adjustment from bagging records; Units Sold comes from bag_sales.

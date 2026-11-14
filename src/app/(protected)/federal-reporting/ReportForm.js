@@ -14,7 +14,7 @@ import {
   Printer,
   Download,
 } from "lucide-react";
-import FarmLayout from "@/app/FarmLayout";
+import FarmLayout from "../../FarmLayout";
 
 const reportDetails = {
   "1099": {

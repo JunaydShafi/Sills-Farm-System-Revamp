@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import CustomerLayout from "@/app/CustomerLayout";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import CustomerLayout from "../../CustomerLayout";
+import FarmLayout from "../../FarmLayout";
+import AddressAutocomplete from "../../../components/AddressAutocomplete";
 
 import { UsaStates } from "usa-states";
 
@@ -243,7 +244,7 @@ export default function AddNewCustomerPage() {
   }
 
   return (
-    <FarmLayout>
+    <CustomerLayout>
       <div className="mx-auto max-w-4xl text-black">
         {/* Breadcrumb */}
         <div className="mb-3 text-sm font-semibold">
@@ -453,6 +454,6 @@ export default function AddNewCustomerPage() {
           )}
         </form>
       </div>
-    </FarmLayout>
+    </CustomerLayout>
   );
 }

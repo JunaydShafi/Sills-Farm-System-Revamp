@@ -4,7 +4,7 @@
 "use client";
 
 import { useState } from "react";
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 // Temporary Sprint 1 records based on the Figma mockup.
 const samplePrices = [

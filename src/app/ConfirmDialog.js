@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
-import { styles } from "@/app/FormWindow";
+import { styles } from "./FormWindow";
 
 // Reusable confirmation dialog (used for Delete and unsaved-changes warnings).
 // Render it with a `dialog` object to open it, or `null` to keep it closed:

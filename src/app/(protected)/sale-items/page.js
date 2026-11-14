@@ -4,7 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 // Temporary Sprint 1 data based on the Figma design.
 const sampleSaleItems = [

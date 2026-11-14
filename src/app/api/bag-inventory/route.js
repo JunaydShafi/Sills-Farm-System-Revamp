@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/session";
-import { getBagInventory } from "@/lib/bagInventory";
+import { prisma } from "../../../lib/prisma";
+import { getSessionUserId } from "../../../lib/session";
+import { getBagInventory } from "../../../lib/bagInventory";
 
 export const runtime = "nodejs";
 
