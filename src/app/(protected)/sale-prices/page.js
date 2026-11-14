@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 // Temporary sale item pricing records based on the Sprint 1 Figma design.
 // Database integration will be implemented in a future sprint.

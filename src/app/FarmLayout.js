@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-import LogoutButton from "@/app/(protected)/main-dashboard/LogoutButton";
-import AccessDeniedButton from "@/app/(protected)/main-dashboard/AccessDeniedButton";
+import LogoutButton from "./(protected)/main-dashboard/LogoutButton";
+import AccessDeniedButton from "./(protected)/main-dashboard/AccessDeniedButton";
 
 import {
   FilePlus,

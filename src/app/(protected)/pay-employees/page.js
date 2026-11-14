@@ -7,26 +7,41 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  Save,
 } from "lucide-react";
 import FormWindow, { ExitButton, styles } from "@/app/FormWindow";
 import ConfirmDialog from "@/app/ConfirmDialog";
+import { apiRequest } from "@/lib/apiClient";
+import {
+  earningTypes,
+  hoursTypingPattern,
+  lineAmountCents,
+  multipliers,
+} from "@/lib/payCalc";
 
-// Demo employee list (no database yet)
-const demoEmployees = [
-  { id: 1, last: "Doe", first: "John", rate: 22.0 },
-  { id: 2, last: "Doe", first: "Jane", rate: 24.5 },
-  { id: 3, last: "Garcia", first: "Robert", rate: 19.75 },
-  { id: 4, last: "Smith", first: "Maria", rate: 21.0 },
-];
+// Active employees come from the database through /api/employees, and saved
+// payments go to /api/payroll (SFBMSR-287).
 
-const earningTypes = ["Regular", "Overtime", "Holiday"];
+// Split "Jane Q. Doe" into first "Jane Q." and last "Doe" for the list
+function toListEmployee(record) {
+  const parts = record.name.trim().split(/\s+/);
+  const last = parts.length > 1 ? parts.pop() : "";
+  return {
+    id: record.id,
+    first: parts.join(" "),
+    last,
+    rate: Number(record.payRate),
+  };
+}
 
-// Regular pays 1x, overtime 1.5x, holiday 2x
-const multipliers = { Regular: 1, Overtime: 1.5, Holiday: 2 };
+const noEmployee = { id: null, first: "", last: "", rate: 0 };
 
-// Non-negative number with up to two decimals (partial input like "8." is
-// allowed while typing)
-const hoursPattern = /^\d*\.?\d{0,2}$/;
+const disabledLook = "disabled:cursor-not-allowed disabled:opacity-50";
+
+// "8." -> "8", "" stays "", "." -> ""
+function cleanHours(value) {
+  return value === "" || Number.isNaN(Number(value)) ? "" : String(Number(value));
+}
 
 const dateFields = [
   { key: "beginDate", label: "Begin" },
@@ -52,15 +67,6 @@ function money(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
-
-// hours x rate x multiplier, worked out in whole cents so the result is
-// rounded to the nearest cent without floating-point drift
-function lineAmountCents(hours, rate, multiplier) {
-  const hundredthsOfHours = Math.round(hours * 100);
-  const rateCents = Math.round(rate * 100);
-  const halfSteps = multiplier * 2; // 1x -> 2, 1.5x -> 3, 2x -> 4
-  return Math.round((hundredthsOfHours * rateCents * halfSteps) / 200);
 }
 
 function hasEntry(entry) {
@@ -91,15 +97,66 @@ function dateErrors(entry) {
 }
 
 export default function PayEmployeesPage() {
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [entry, setEntry] = useState(blankPayEntry);
   const [hoursError, setHoursError] = useState("");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState("info");
   const [dialog, setDialog] = useState(null);
   const listItemRefs = useRef([]);
 
-  const employee = demoEmployees[selectedIndex];
+  const employee = employees[selectedIndex] ?? noEmployee;
+  const hasEmployees = employees.length > 0;
   const closeDialog = useCallback(() => setDialog(null), []);
+
+  function showMessage(text, tone = "info") {
+    setMessage(text);
+    setMessageTone(tone);
+  }
+
+  // Load active employees, sorted by last name, when the page opens
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { ok, data } = await apiRequest("/api/employees");
+      if (cancelled) {
+        return;
+      }
+
+      setLoading(false);
+
+      if (!ok) {
+        setMessage(data.error ?? "Unable to load employees.");
+        setMessageTone("error");
+        return;
+      }
+
+      const active = data.employees
+        .filter((record) => record.active === "Active")
+        .map(toListEmployee)
+        .sort(
+          (a, b) =>
+            a.last.localeCompare(b.last) || a.first.localeCompare(b.first)
+        );
+
+      setEmployees(active);
+
+      if (active.length === 0) {
+        setMessage(
+          "There are no active employees. Add employees on the Employees page first."
+        );
+        setMessageTone("info");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Keep the selected employee visible in the list
   useEffect(() => {
@@ -125,18 +182,22 @@ export default function PayEmployeesPage() {
   const errors = dateErrors(entry);
   const entryStarted = hasEntry(entry);
   const entryComplete = entryStarted && Object.keys(errors).length === 0;
+  const canSave = hasEmployees && entryComplete && grossPay > 0 && !saving;
 
   function showEmployee(newIndex) {
     setSelectedIndex(newIndex);
     setEntry(blankPayEntry());
     setHoursError("");
-    setMessage("");
+    showMessage("");
   }
 
   // Click in the list, or Prev / Next (wraps around at both ends)
   function selectEmployee(newIndex) {
-    const wrapped =
-      (newIndex + demoEmployees.length) % demoEmployees.length;
+    if (!hasEmployees || saving) {
+      return;
+    }
+
+    const wrapped = (newIndex + employees.length) % employees.length;
 
     if (wrapped === selectedIndex) {
       return;
@@ -147,7 +208,7 @@ export default function PayEmployeesPage() {
       return;
     }
 
-    const next = demoEmployees[wrapped];
+    const next = employees[wrapped];
 
     setDialog({
       title: "Change employee",
@@ -162,9 +223,9 @@ export default function PayEmployeesPage() {
   }
 
   function updateHours(type, value) {
-    if (!hoursPattern.test(value)) {
+    if (!hoursTypingPattern.test(value)) {
       setHoursError(
-        `${type} hours must be a number of 0 or more with up to two decimal places.`
+        `${type} hours must be a number from 0 to 999.99 with up to two decimal places.`
       );
       return;
     }
@@ -174,31 +235,84 @@ export default function PayEmployeesPage() {
       ...previous,
       hours: { ...previous.hours, [type]: value },
     }));
-    setMessage("");
+    showMessage("");
   }
 
   function updateDate(key, value) {
     setEntry((previous) => ({ ...previous, [key]: value }));
-    setMessage("");
+    showMessage("");
   }
 
   function undoEntry() {
     setEntry(blankPayEntry());
     setHoursError("");
-    setMessage(`Pay entry cleared for ${employee.first} ${employee.last}.`);
+    showMessage(`Pay entry cleared for ${employee.first} ${employee.last}.`);
+  }
+
+  // Save the entry as a payroll record. If this employee was already paid
+  // for the same period, ask before saving a second payment.
+  async function savePayment(confirmDuplicate = false) {
+    if (!canSave) {
+      return;
+    }
+
+    setSaving(true);
+    const { ok, data } = await apiRequest("/api/payroll", {
+      method: "POST",
+      body: JSON.stringify({
+        employeeId: employee.id,
+        hours: Object.fromEntries(
+          earningTypes.map((type) => [type, cleanHours(entry.hours[type])])
+        ),
+        beginDate: entry.beginDate,
+        endDate: entry.endDate,
+        payDate: entry.payDate,
+        confirmDuplicate,
+      }),
+    });
+    setSaving(false);
+
+    if (ok && data.duplicate) {
+      setDialog({
+        title: "Already paid for this period",
+        message: `${data.error} Save another payment anyway?`,
+        cancelLabel: "Cancel",
+        confirmLabel: "Save anyway",
+        onConfirm: () => {
+          setDialog(null);
+          savePayment(true);
+        },
+      });
+      return;
+    }
+
+    if (!ok) {
+      showMessage(data.error ?? "Unable to save the payment. Please try again.", "error");
+      return;
+    }
+
+    setEntry(blankPayEntry());
+    setHoursError("");
+    showMessage(
+      `Payment of $${money(data.record.gross)} saved for ${data.record.name} (pay date ${data.record.payDate}).`,
+      "success"
+    );
   }
 
   return (
     <FormWindow
+      showPrototypeNote={false}
       title="Pay Employees"
       icon={Banknote}
       message={message}
+      messageTone={messageTone}
       footer={
         <>
           <button
             type="button"
             onClick={() => selectEmployee(selectedIndex - 1)}
-            className={styles.secondaryButton}
+            disabled={!hasEmployees || saving}
+            className={`${styles.secondaryButton} ${disabledLook}`}
           >
             <ChevronLeft size={18} />
             Prev
@@ -207,7 +321,8 @@ export default function PayEmployeesPage() {
           <button
             type="button"
             onClick={() => selectEmployee(selectedIndex + 1)}
-            className={styles.secondaryButton}
+            disabled={!hasEmployees || saving}
+            className={`${styles.secondaryButton} ${disabledLook}`}
           >
             Next
             <ChevronRight size={18} />
@@ -216,8 +331,24 @@ export default function PayEmployeesPage() {
           <div className="ml-auto flex flex-wrap gap-3">
             <button
               type="button"
+              onClick={() => savePayment()}
+              disabled={!canSave}
+              title={
+                canSave
+                  ? undefined
+                  : "Enter hours and valid Begin, End, and Pay Date to save."
+              }
+              className={`${styles.primaryButton} ${disabledLook}`}
+            >
+              <Save size={18} />
+              {saving ? "Saving…" : "Save Payment"}
+            </button>
+
+            <button
+              type="button"
               onClick={undoEntry}
-              className={styles.secondaryButton}
+              disabled={!hasEmployees || saving}
+              className={`${styles.secondaryButton} ${disabledLook}`}
             >
               <RotateCcw size={18} />
               Undo Entry
@@ -243,7 +374,17 @@ export default function PayEmployeesPage() {
           </div>
 
           <ul className="h-64 overflow-y-auto">
-            {demoEmployees.map((person, personIndex) => (
+            {loading && (
+              <li className="px-3 py-3 text-sm text-gray-500">
+                Loading employees…
+              </li>
+            )}
+            {!loading && !hasEmployees && (
+              <li className="px-3 py-3 text-sm text-gray-500">
+                No active employees.
+              </li>
+            )}
+            {employees.map((person, personIndex) => (
               <li key={person.id}>
                 <button
                   ref={(element) => {
@@ -282,7 +423,7 @@ export default function PayEmployeesPage() {
               </span>
             </span>
             <span className="ml-auto text-xs text-gray-600">
-              Employee {selectedIndex + 1} of {demoEmployees.length}
+              {hasEmployees ? `Employee ${selectedIndex + 1} of ${employees.length}` : ""}
             </span>
           </div>
 

@@ -2,14 +2,14 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
-import { prisma } from "@/lib/prisma";
-import { createSession } from "@/lib/session";
+import { prisma } from "../../../../lib/prisma";
+import { createSession } from "../../../../lib/session";
 
 import {
   checkLoginLimit,
   recordFailedLogin,
   clearFailedLogins,
-} from "@/lib/loginRateLimit";
+} from "../../../../lib/loginRateLimit";
 
 export const runtime = "nodejs";
 
@@ -111,6 +111,16 @@ export async function POST(request) {
 
     // Create the authenticated session.
     await createSession(user.id);
+
+    // Record the user's most recent successful login.
+    await prisma.users.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        last_login: new Date(),
+      },
+    });
 
     // Reset the failed-attempt counter.
     await clearFailedLogins(cleanUsername);

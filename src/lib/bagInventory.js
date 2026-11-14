@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma";
 
 // Bags Made counts completed bagging records only, including adjustments.
 // Inventory and Inventory lbs are calculated here so they can never go stale.

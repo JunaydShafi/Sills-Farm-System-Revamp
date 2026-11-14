@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import CustomerLayout from "@/app/CustomerLayout";
+import CustomerLayout from "../../CustomerLayout";
 
 const sampleProducts = [
   { id: 1, customer: "Amy Kitchen, Inc", product: "Black Beans", size: "50LB" },

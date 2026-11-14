@@ -1,7 +1,7 @@
 
 import { redirect } from "next/navigation";
-import { getSessionUserId } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "./session";
+import { prisma } from "./prisma";
 
 export async function getAuthenticatedUser() {
   const userId = await getSessionUserId();

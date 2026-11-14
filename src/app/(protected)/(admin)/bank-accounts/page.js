@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
+import SidebarLayout, { PageTitle, Pagination } from "../../../SidebarLayout";
 
 const demoAccounts = [
   {
