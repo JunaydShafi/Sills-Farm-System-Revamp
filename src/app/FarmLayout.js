@@ -89,54 +89,7 @@ export default function FarmLayout({ children }) {
   return (
     <main className="flex min-h-screen flex-col bg-gray-100">
 
-      {/* HEADER - Matches Main Dashboard */}
-      <header className="relative grid grid-cols-1 items-center gap-4 border-b-2 border-emerald-700 bg-white px-6 py-3 shadow-sm md:grid-cols-[185px_1fr_210px]">
-
-        {/* Farm logo - Click to return to dashboard */}
-        <Link
-          href="/main-dashboard"
-          className="flex justify-center"
-          aria-label="Return to Main Dashboard"
-          title="Return to Main Dashboard"
-        >
-          <Image
-            src="/logos/greenLogoTractor.png"
-            alt="Pleasant Grove Farms tractor logo"
-            width={185}
-            height={135}
-            className="h-auto w-[185px] object-contain"
-            priority
-          />
-        </Link>
-
-        {/* Centered farm title */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-green-950 lg:text-3xl">
-            PLEASANT GROVE FARMS
-          </h1>
-
-          <p className="mt-1 text-lg font-semibold text-emerald-700 lg:text-xl">
-            Business Management System
-          </p>
-        </div>
-
-        {/* Display the actual authenticated user's name and role */}
-        <div className="flex items-center justify-center rounded-lg border border-green-900 bg-emerald-600 px-4 py-4 text-black">
-          <div className="text-center">
-            <p className="font-bold">
-              {isLoadingUser
-                ? "Loading..."
-                : user?.name || "User unavailable"}
-            </p>
-
-            <p className="text-sm">
-              {isLoadingUser
-                ? "Verifying account"
-                : user?.role || "Unknown role"}
-            </p>
-          </div>
-        </div>
-      </header>
+      
 
       {/* FARM BACKGROUND */}
       <div
@@ -152,65 +105,7 @@ export default function FarmLayout({ children }) {
           {children}
         </div>
 
-        {/* BOTTOM NAVIGATION - Matches Main Dashboard */}
-        <nav className="mt-auto flex flex-wrap items-center justify-around gap-4 pt-5">
-
-          {navigation.map((item) => {
-            const BottomIcon = item.icon;
-
-            // Reusable navigation button content
-            const buttonContent = (
-              <>
-                <BottomIcon
-                  size={28}
-                  strokeWidth={2.3}
-                  className="shrink-0 text-green-900"
-                />
-
-                <div className="text-left">
-                  <p className="font-semibold">
-                    {item.label}
-                  </p>
-
-                  <p className="text-xs text-gray-700">
-                    {item.subtitle}
-                  </p>
-                </div>
-              </>
-            );
-
-            // Preserve the original button styling
-            const buttonClass =
-              "flex min-h-16 w-auto min-w-[190px] items-center justify-center gap-3 rounded-md border border-gray-600 bg-white/95 px-5 py-2 text-green-950 shadow-md transition hover:bg-emerald-100";
-
-            // User Management requires Administrator privileges.
-            if (item.adminOnly && !isAdmin) {
-              return (
-                <AccessDeniedButton
-                  key={item.label}
-                  className={buttonClass}
-                >
-                  {buttonContent}
-                </AccessDeniedButton>
-              );
-            }
-
-            // Normal navigation for permitted pages.
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={buttonClass}
-              >
-                {buttonContent}
-              </Link>
-            );
-          })}
-
-          {/* Functional logout button */}
-          <LogoutButton />
-
-        </nav>
+        
       </div>
     </main>
   );

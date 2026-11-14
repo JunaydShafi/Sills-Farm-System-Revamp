@@ -21,18 +21,13 @@ const emptyForm = {
   size: "",
   productId: "",
   procId: "",
-  adjustment: "0",
+  adjustment: false,
 };
 
 // 2026-09-14 -> 9/14/2026, without time zone shifts
 function formatDate(value) {
   const [year, month, day] = value.split("-");
   return `${Number(month)}/${Number(day)}/${year}`;
-}
-
-function formatAdjustment(value) {
-  if (value === 0) return "—";
-  return value > 0 ? `+${value}` : String(value);
 }
 
 async function fetchBagging() {
@@ -121,7 +116,7 @@ export default function BaggingDataPage() {
       size: String(record.size),
       productId: String(record.productId),
       procId: String(record.procId),
-      adjustment: String(record.adjustment),
+      adjustment: record.adjustment,
     });
     setFieldErrors({});
     setSaveError("");
@@ -304,7 +299,7 @@ export default function BaggingDataPage() {
               <input
                 id="quantity"
                 type="number"
-                min="0"
+                min={form.adjustment ? undefined : "1"}
                 step="1"
                 inputMode="numeric"
                 value={form.quantity}
@@ -331,15 +326,17 @@ export default function BaggingDataPage() {
               </datalist>
             </Field>
 
-            <Field label="Adjustment (+/- bags)" htmlFor="adjustment" error={fieldErrors.adjustment}>
-              <input
-                id="adjustment"
-                type="number"
-                step="1"
-                value={form.adjustment}
-                onChange={(event) => updateField("adjustment", event.target.value)}
-                className={inputStyle}
-              />
+            <Field label="Adjustment" htmlFor="adjustment" error={fieldErrors.adjustment}>
+              <label className="flex items-center gap-2 py-1.5 text-sm text-black">
+                <input
+                  id="adjustment"
+                  type="checkbox"
+                  checked={form.adjustment}
+                  onChange={(event) => updateField("adjustment", event.target.checked)}
+                  className="h-4 w-4 accent-emerald-600"
+                />
+                Correction to the bag count (quantity may be negative)
+              </label>
             </Field>
           </div>
 
@@ -402,7 +399,14 @@ export default function BaggingDataPage() {
                 <td className={cellStyle}>{record.product}</td>
                 <td className={cellStyle}>{record.proc}</td>
                 <td className={`${cellStyle} text-center`}>
-                  {formatAdjustment(record.adjustment)}
+                  <input
+                    type="checkbox"
+                    checked={record.adjustment}
+                    readOnly
+                    tabIndex={-1}
+                    aria-label={record.adjustment ? "Adjustment" : "Not an adjustment"}
+                    className="pointer-events-none h-4 w-4 accent-emerald-600"
+                  />
                 </td>
               </tr>
             ))}

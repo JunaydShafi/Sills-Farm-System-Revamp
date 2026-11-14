@@ -15,24 +15,29 @@ export async function GET() {
     const sales = await prisma.bag_sales.findMany({
       orderBy: [{ sale_date: "desc" }, { id: "desc" }],
       include: {
-        processes: { select: { process_number: true } },
-        sale_items: { select: { name: true } },
+        bag_inventory_items: {
+          include: {
+            processes: { select: { process_number: true } },
+            sale_items: { select: { name: true } },
+          },
+        },
       },
     });
 
     return NextResponse.json({
       sales: sales.map((sale) => {
+        const item = sale.bag_inventory_items;
         return {
           id: sale.id,
           orderDate: toDateString(sale.sale_date),
           orderNo: null,
           type: null,
-          description: sale.sale_items.name,
-          proc: sale.processes.process_number,
+          description: item.sale_items.name,
+          proc: item.processes.process_number,
           customer: null,
-          factor: sale.size_lbs,
+          factor: item.factor_lbs,
           quantity: sale.units_sold,
-          lbs: sale.units_sold * sale.size_lbs,
+          lbs: sale.units_sold * item.factor_lbs,
           price: null,
           total: null,
         };

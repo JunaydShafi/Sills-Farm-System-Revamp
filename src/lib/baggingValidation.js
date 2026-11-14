@@ -46,7 +46,17 @@ export function validateBaggingRecord(input) {
     record.date = date;
   }
 
-  // Quantity: required whole number of bags, zero allowed for adjustment-only entries
+  // Adjustment: a correction to the bag count instead of newly made bags
+  if (
+    input.adjustment !== undefined &&
+    typeof input.adjustment !== "boolean"
+  ) {
+    errors.adjustment = "Adjustment must be checked or unchecked.";
+  } else {
+    record.adjustment = input.adjustment === true;
+  }
+
+  // Quantity: whole number of bags. Only adjustments may be negative.
   if (isBlank(input.quantity)) {
     errors.quantity = "Quantity is required.";
   } else {
@@ -54,8 +64,12 @@ export function validateBaggingRecord(input) {
 
     if (Number.isNaN(quantity)) {
       errors.quantity = "Quantity must be a whole number.";
-    } else if (quantity < 0 || quantity > MAX_BAGS) {
-      errors.quantity = `Quantity must be between 0 and ${MAX_BAGS}.`;
+    } else if (Math.abs(quantity) > MAX_BAGS) {
+      errors.quantity = `Quantity cannot be more than ${MAX_BAGS} bags.`;
+    } else if (record.adjustment && quantity === 0) {
+      errors.quantity = "An adjustment cannot be 0 (use - to subtract bags).";
+    } else if (!record.adjustment && quantity < 1) {
+      errors.quantity = "Quantity must be at least 1. Check Adjustment to subtract bags.";
     } else {
       record.quantity = quantity;
     }
@@ -74,25 +88,6 @@ export function validateBaggingRecord(input) {
     } else {
       record.size = size;
     }
-  }
-
-  // Adjustment: optional correction, may be negative, blank means 0
-  if (isBlank(input.adjustment)) {
-    record.adjustment = 0;
-  } else {
-    const adjustment = readWholeNumber(input.adjustment);
-
-    if (Number.isNaN(adjustment)) {
-      errors.adjustment = "Adjustment must be a whole number (use - to subtract).";
-    } else if (Math.abs(adjustment) > MAX_BAGS) {
-      errors.adjustment = `Adjustment must be between -${MAX_BAGS} and ${MAX_BAGS}.`;
-    } else {
-      record.adjustment = adjustment;
-    }
-  }
-
-  if (record.quantity === 0 && record.adjustment === 0) {
-    errors.quantity = "Enter a quantity or an adjustment.";
   }
 
   // Product and Proc: required selections from the database lists

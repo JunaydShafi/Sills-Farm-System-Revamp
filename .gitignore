@@ -151,3 +151,8 @@ vite.config.ts.timestamp-*
 # Local security audit reports
 audit-report.json
 /src/generated/prisma
+
+
+# Database change reports
+/schema-changes.sql
+*.copy
