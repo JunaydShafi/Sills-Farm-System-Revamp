@@ -49,10 +49,7 @@ export default function LogoutButton() {
 
         <div className="text-left">
           <p className="font-semibold text-red-700">
-            {isLoggingOut ? "Logging Out..." : "Exit System"}
-          </p>
-          <p className="text-xs text-gray-700">
-            Close Application
+            {isLoggingOut ? "Logging Out..." : "Log Out"}
           </p>
         </div>
       </button>

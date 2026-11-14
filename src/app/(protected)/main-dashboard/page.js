@@ -98,6 +98,7 @@ const dashboardSections = [
         href: "/earnings",
         icon: ChartNoAxesColumn,
       },
+      { label: "User Management", href: "/user-management", icon: Users }
     ],
   },
   {
@@ -160,6 +161,8 @@ const dashboardSections = [
         href: "/reports",
         icon: ChartColumnIncreasing,
       },
+      { label: "Federal Reporting", href: "/federal-reporting", icon: FilePlus },
+      { label: "Activity History", href: "/activity-history", icon: History }
     ],
   },
 ];
@@ -307,7 +310,8 @@ export default async function Home() {
 
   // STEP 4: Render the dashboard.
   return (
-    <main className="flex min-h-screen flex-col bg-gray-100">
+    <main className="flex min-h-screen flex-col bg-gray-100" >
+      
       {/* DASHBOARD BACKGROUND */}
       <div
         className="flex flex-1 flex-col bg-center bg-no-repeat"
@@ -327,59 +331,7 @@ export default async function Home() {
           ))}
         </div>
 
-        {/* Bottom navigation */}
-        <div className="mt-auto flex flex-wrap items-center justify-around gap-4 pt-5">
-          {bottomNavigation.map((item) => {
-            const BottomIcon = item.icon;
-
-            const buttonContent = (
-              <>
-                <BottomIcon
-                  size={28}
-                  strokeWidth={2.3}
-                  className="shrink-0 text-green-900"
-                />
-
-                <div className="text-left">
-                  <p className="font-semibold">
-                    {item.label}
-                  </p>
-
-                  <p className="text-xs text-gray-700">
-                    {item.subtitle}
-                  </p>
-                </div>
-              </>
-            );
-
-            const buttonClass =
-              "flex min-h-16 w-auto min-w-[190px] items-center justify-center gap-3 rounded-md border border-gray-600 bg-white/95 px-5 py-2 text-green-950 shadow-md transition hover:bg-emerald-100";
-
-            if (item.adminOnly && !isAdmin) {
-              return (
-                <AccessDeniedButton
-                  key={item.label}
-                  className={buttonClass}
-                >
-                  {buttonContent}
-                </AccessDeniedButton>
-              );
-            }
-
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={buttonClass}
-              >
-                {buttonContent}
-              </Link>
-            );
-          })}
-
-          {/* Functional logout button */}
-          <LogoutButton />
-        </div>
+       
       </div>
     </main>
   );

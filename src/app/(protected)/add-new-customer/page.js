@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import CustomerLayout from "../../CustomerLayout";
-import FarmLayout from "../../FarmLayout";
-import AddressAutocomplete from "../../../components/AddressAutocomplete";
+import CustomerLayout from "@/app/CustomerLayout";
+import FarmLayout from "@/app/FarmLayout";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 import { UsaStates } from "usa-states";
 
