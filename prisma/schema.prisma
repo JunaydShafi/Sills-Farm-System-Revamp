@@ -18,7 +18,6 @@ model users {
   password_hash String
   role          String          @default("Employee") @db.VarChar(20)
   status        String          @default("Active") @db.VarChar(20)
-  is_owner      Boolean         @default(false)
   last_login    DateTime?       @db.Timestamptz(6)
   created_at    DateTime        @default(now()) @db.Timestamptz(6)
   is_owner      Boolean         @unique(map: "users_single_owner_idx", where: raw("(is_owner = true)")) @default(false)
