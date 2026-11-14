@@ -1,7 +1,7 @@
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -18,9 +18,9 @@ model users {
   password_hash String
   role          String          @default("Employee") @db.VarChar(20)
   status        String          @default("Active") @db.VarChar(20)
-  is_owner      Boolean         @default(false)
   last_login    DateTime?       @db.Timestamptz(6)
   created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  is_owner      Boolean         @unique(map: "users_single_owner_idx", where: raw("(is_owner = true)")) @default(false)
   user_sessions user_sessions[]
 }
 
@@ -36,88 +36,195 @@ model user_sessions {
   @@index([user_id], map: "idx_user_sessions_user_id")
 }
 
-// Tracks temporary login restrictions by username.
-// No passwords or password hashes are stored here.
 model login_attempts {
-  username       String    @id @db.VarChar(50)
-  failed_count   Int       @default(0)
-  window_start   DateTime  @default(now()) @db.Timestamptz(6)
-  locked_until   DateTime? @db.Timestamptz(6)
-  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+  username     String    @id @db.VarChar(50)
+  failed_count Int       @default(0)
+  window_start DateTime  @default(now()) @db.Timestamptz(6)
+  locked_until DateTime? @db.Timestamptz(6)
+  updated_at   DateTime  @updatedAt @db.Timestamptz(6)
 
   @@index([locked_until])
 }
+
 // Stores customer information for the Sills Farm Business Management System.
- // Customer codes are unique to prevent duplicate customer records.
- model customers {
-   id            Int      @id @default(autoincrement())
-   customer_code String   @unique @db.VarChar(30)
-   name          String   @db.VarChar(150)
-   address       String   @db.VarChar(255)
-   city          String   @db.VarChar(100)
-   state         String   @db.VarChar(2)
-   zip           String   @db.VarChar(10)
-   phone         String   @db.VarChar(25)
-   status        String   @default("Active") @db.VarChar(20)
-   created_at    DateTime @default(now()) @db.Timestamptz(6)
- }
+// Customer codes are unique to prevent duplicate customer records.
+model customers {
+  id            Int      @id @default(autoincrement())
+  customer_code String   @unique @db.VarChar(30)
+  name          String   @db.VarChar(150)
+  address       String   @db.VarChar(255)
+  city          String   @db.VarChar(100)
+  state         String   @db.VarChar(2)
+  zip           String   @db.VarChar(10)
+  phone         String   @db.VarChar(25)
+  status        String   @default("Active") @db.VarChar(20)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+}
+
+enum OrderStatus {
+  Open
+  AwaitingInvoice
+  Shipped
+  Completed
+  Cancelled
+
+  @@map("order_status")
+}
+
+enum OrderItemType {
+  Product
+  Miscellaneous
+
+  @@map("order_item_type")
+}
+
+model orders {
+  id          Int     @id @default(autoincrement())
+  customer_id Int
+  po_number   String? @db.VarChar(50)
+
+  order_date DateTime    @default(now()) @db.Date
+  status     OrderStatus @default(Open)
+
+  // Shipping
+  shipping_cost    Decimal @default(0) @db.Decimal(12, 2)
+  shipping_taxable Boolean @default(false)
+
+  // Tax snapshot
+  tax_rate   Decimal @default(0) @db.Decimal(7, 4)
+  tax_amount Decimal @default(0) @db.Decimal(12, 2)
+
+  // Financial totals
+  subtotal Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @default(0) @db.Decimal(12, 2)
+
+  notes String?
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  order_items order_items[]
+
+  @@index([customer_id])
+  @@index([order_date])
+  @@index([status])
+  @@index([customer_id, order_date])
+  @@map("orders")
+}
+
+model order_items {
+  id           Int  @id @default(autoincrement())
+  order_id     Int
+  sale_item_id Int?
+
+  item_type OrderItemType @default(Product)
+
+  // Historical description snapshot
+  description String @db.VarChar(255)
+
+  // Quantity and pricing snapshots
+  quantity   Decimal @db.Decimal(12, 3)
+  unit_price Decimal @db.Decimal(12, 2)
+  line_total Decimal @db.Decimal(12, 2)
+
+  // Taxability snapshot
+  is_taxable Boolean @default(true)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  orders orders @relation(fields: [order_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  sale_items sale_items? @relation(fields: [sale_item_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([order_id])
+  @@index([sale_item_id])
+  @@map("order_items")
+}
 
 // A processing run. process_number is the "Proc" shown on inventory screens.
 model processes {
-  id                   Int                    @id @default(autoincrement())
-  process_number       Int                    @unique
-  description          String                 @db.VarChar(150)
-  created_at           DateTime               @default(now()) @db.Timestamptz(6)
-  bag_inventory_items  bag_inventory_items[]
+  id                  Int                   @id @default(autoincrement())
+  process_number      Int                   @unique
+  description         String                @db.VarChar(150)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items[]
 }
 
 // A product that can be sold. item_code is the "SaleItemID" on Bag Inventory.
 model sale_items {
-  id                   Int                    @id @default(autoincrement())
-  item_code            String                 @unique @db.VarChar(30)
-  name                 String                 @db.VarChar(150)
-  created_at           DateTime               @default(now()) @db.Timestamptz(6)
-  bag_inventory_items  bag_inventory_items[]
+  id                  Int                   @id @default(autoincrement())
+  item_code           String                @unique @db.VarChar(30)
+  name                String                @db.VarChar(150)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items[]
+  is_taxable          Boolean               @default(true)
+  order_items         order_items[]
+  price_list_items    price_list_items[]
+}
+
+model price_lists {
+  id             Int                @id @default(autoincrement())
+  name           String             @unique @db.VarChar(100)
+  is_default     Boolean            @default(false)
+  created_at     DateTime           @default(now()) @db.Timestamptz(6)
+  priceListItems price_list_items[]
+
+  @@index([is_default])
+}
+
+model price_list_items {
+  id            Int      @id @default(autoincrement())
+  price_list_id Int
+  sale_item_id  Int
+  unit_price    Decimal  @db.Decimal(12, 2)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  price_lists price_lists @relation(fields: [price_list_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  sale_items sale_items @relation(fields: [sale_item_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([price_list_id, sale_item_id])
+  @@index([sale_item_id])
 }
 
 // One row of Bag Inventory: a sale item bagged from a process at a bag size.
 // Balances are calculated from the tables below and are never stored here.
 model bag_inventory_items {
-  id                Int               @id @default(autoincrement())
-  process_id        Int
-  sale_item_id      Int
-  factor_lbs        Int
-  created_at        DateTime          @default(now()) @db.Timestamptz(6)
-  processes         processes         @relation(fields: [process_id], references: [id], onUpdate: NoAction)
-  sale_items        sale_items        @relation(fields: [sale_item_id], references: [id], onUpdate: NoAction)
-  bagging_records   bagging_records[]
-  bag_sales         bag_sales[]
+  id              Int               @id @default(autoincrement())
+  process_id      Int
+  sale_item_id    Int
+  factor_lbs      Int
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  processes       processes         @relation(fields: [process_id], references: [id], onUpdate: NoAction)
+  sale_items      sale_items        @relation(fields: [sale_item_id], references: [id], onUpdate: NoAction)
+  bagging_records bagging_records[]
+  bag_sales       bag_sales[]
 
   @@unique([process_id, sale_item_id, factor_lbs])
 }
 
 // Bags produced. Only "Completed" records count toward Bags Made.
 model bagging_records {
-  id                  Int                  @id @default(autoincrement())
+  id                  Int                 @id @default(autoincrement())
   inventory_item_id   Int
-  bag_date            DateTime             @db.Date
+  bag_date            DateTime            @db.Date
   quantity            Int
-  is_adjustment       Boolean              @default(false)
-  status              String               @default("Completed") @db.VarChar(20)
-  created_at          DateTime             @default(now()) @db.Timestamptz(6)
-  bag_inventory_items bag_inventory_items  @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
+  is_adjustment       Boolean             @default(false)
+  status              String              @default("Completed") @db.VarChar(20)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
 
   @@index([inventory_item_id])
 }
 
 // Bags sold. Orders and invoices can point at this table once they are built.
 model bag_sales {
-  id                  Int                  @id @default(autoincrement())
+  id                  Int                 @id @default(autoincrement())
   inventory_item_id   Int
-  sale_date           DateTime             @db.Date
+  sale_date           DateTime            @db.Date
   units_sold          Int
-  created_at          DateTime             @default(now()) @db.Timestamptz(6)
-  bag_inventory_items bag_inventory_items  @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  bag_inventory_items bag_inventory_items @relation(fields: [inventory_item_id], references: [id], onUpdate: NoAction)
 
   @@index([inventory_item_id])
 }
