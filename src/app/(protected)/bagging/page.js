@@ -1,34 +1,194 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Plus } from "lucide-react";
-import SidebarLayout, { PageTitle, Pagination } from "@/app/SidebarLayout";
-
-const demoBagRecords = [
-  { id: 1, date: "9/14/2026", quantity: 80, size: 25, product: "Black Beans", proc: 1001 },
-  { id: 2, date: "9/15/2026", quantity: 100, size: 50, product: "Split Peas", proc: 1002 },
-  { id: 3, date: "9/16/2026", quantity: 80, size: 25, product: "Pinto Beans", proc: 1003 },
-  { id: 4, date: "9/17/2026", quantity: 150, size: 50, product: "Green Peas", proc: 1004 },
-  { id: 5, date: "9/18/2026", quantity: 90, size: 25, product: "Yellow Peas", proc: 1005 },
-  { id: 6, date: "9/19/2026", quantity: 110, size: 50, product: "Kidney Beans", proc: 1006 },
-  { id: 7, date: "9/20/2026", quantity: 75, size: 25, product: "Navy Beans", proc: 1007 },
-  { id: 8, date: "9/21/2026", quantity: 140, size: 50, product: "Chickpeas", proc: 1008 },
-  { id: 9, date: "9/22/2026", quantity: 60, size: 25, product: "Lima Beans", proc: 1009 },
-  { id: 10, date: "9/23/2026", quantity: 95, size: 50, product: "Snow Peas", proc: 1010 },
-  { id: 11, date: "9/24/2026", quantity: 130, size: 25, product: "Red Beans", proc: 1011 },
-  { id: 12, date: "9/25/2026", quantity: 40, size: 25, product: "Black Beans", proc: 1001 },
-];
+import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Search, Plus } from "lucide-react";
+import SidebarLayout, { PageTitle } from "@/app/SidebarLayout";
+import { validateBaggingRecord } from "@/lib/baggingValidation";
 
 const cellStyle = "border-x border-gray-300 px-2 py-1.5";
 
-export default function BaggingDataPage() {
-  const [search, setSearch] = useState("");
+const rowsPerPage = 12;
 
-  const filteredRecords = demoBagRecords.filter(
+const pageButtonStyle =
+  "flex items-center gap-1 rounded bg-gray-200 px-4 py-1.5 hover:bg-gray-300 disabled:opacity-50";
+
+const inputStyle =
+  "w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-black outline-none focus:border-emerald-600";
+
+const emptyForm = {
+  date: "",
+  quantity: "",
+  size: "",
+  productId: "",
+  procId: "",
+  adjustment: "0",
+};
+
+// 2026-09-14 -> 9/14/2026, without time zone shifts
+function formatDate(value) {
+  const [year, month, day] = value.split("-");
+  return `${Number(month)}/${Number(day)}/${year}`;
+}
+
+function formatAdjustment(value) {
+  if (value === 0) return "—";
+  return value > 0 ? `+${value}` : String(value);
+}
+
+async function fetchBagging() {
+  const response = await fetch("/api/bagging", { cache: "no-store" });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+function Field({ label, htmlFor, error, children }) {
+  return (
+    <div>
+      <label htmlFor={htmlFor} className="mb-1 block text-sm font-bold text-black">
+        {label}
+      </label>
+      {children}
+      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+    </div>
+  );
+}
+
+export default function BaggingDataPage() {
+  const [records, setRecords] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [processes, setProcesses] = useState([]);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  // Entry form: editingId is null when adding a new record
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const applyResult = useCallback((request) => {
+    return request
+      .then((data) => {
+        setRecords(data.records);
+        setProducts(data.products);
+        setProcesses(data.processes);
+        setLoadError("");
+      })
+      .catch((error) => {
+        setRecords([]);
+        setLoadError(error.message || "Unable to load bagging records.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    applyResult(fetchBagging());
+  }, [applyResult]);
+
+  function updateField(field, value) {
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+    setFieldErrors((previous) => ({ ...previous, [field]: undefined }));
+    setSaveError("");
+  }
+
+  function openNewRecord() {
+    setEditingId(null);
+    setForm({ ...emptyForm, date: new Date().toLocaleDateString("en-CA") });
+    setFieldErrors({});
+    setSaveError("");
+    setMessage("");
+    setFormOpen(true);
+  }
+
+  function openExistingRecord(record) {
+    setEditingId(record.id);
+    setForm({
+      date: record.date,
+      quantity: String(record.quantity),
+      size: String(record.size),
+      productId: String(record.productId),
+      procId: String(record.procId),
+      adjustment: String(record.adjustment),
+    });
+    setFieldErrors({});
+    setSaveError("");
+    setMessage("");
+    setFormOpen(true);
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditingId(null);
+    setFieldErrors({});
+    setSaveError("");
+  }
+
+  async function handleSave(event) {
+    event.preventDefault();
+
+    // Same rules the server applies, checked first for instant feedback
+    const { errors } = validateBaggingRecord(form);
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setSaveError("Please correct the highlighted fields.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(
+        editingId ? `/api/bagging/${editingId}` : "/api/bagging",
+        {
+          method: editingId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        },
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        setFieldErrors(data.errors ?? {});
+        setSaveError(data.error || "Unable to save bagging record.");
+        return;
+      }
+
+      setMessage(data.message);
+      closeForm();
+      setLoading(true);
+      await applyResult(fetchBagging());
+    } catch {
+      setSaveError("Unable to save bagging record.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const searchText = search.toLowerCase();
+  const filteredRecords = records.filter(
     (record) =>
-      record.product.toLowerCase().includes(search.toLowerCase()) ||
+      record.product.toLowerCase().includes(searchText) ||
       String(record.proc).includes(search)
   );
+
+  const pageCount = Math.max(1, Math.ceil(filteredRecords.length / rowsPerPage));
+  const currentPage = Math.min(page, pageCount);
+  const firstRow = (currentPage - 1) * rowsPerPage;
+  const visibleRecords = filteredRecords.slice(firstRow, firstRow + rowsPerPage);
 
   return (
     <SidebarLayout>
@@ -41,7 +201,10 @@ export default function BaggingDataPage() {
           <input
             type="text"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
             placeholder="Search by product or process number..."
             className="w-full bg-transparent text-sm text-black outline-none placeholder:text-gray-500"
           />
@@ -49,12 +212,161 @@ export default function BaggingDataPage() {
 
         <button
           type="button"
-          className="flex items-center gap-1 rounded-md bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+          onClick={openNewRecord}
+          disabled={loading || Boolean(loadError)}
+          className="flex items-center gap-1 rounded-md bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
           <Plus size={16} strokeWidth={3} />
           Add record
         </button>
       </div>
+
+      {loadError && (
+        <p
+          role="alert"
+          className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+        >
+          {loadError}
+        </p>
+      )}
+
+      {message && !formOpen && (
+        <p
+          role="status"
+          className="mb-3 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900"
+        >
+          {message}
+        </p>
+      )}
+
+      {/* Bagging entry form */}
+      {formOpen && (
+        <form
+          onSubmit={handleSave}
+          noValidate
+          className="mb-4 rounded-md border border-gray-300 bg-gray-50 p-4"
+        >
+          <h3 className="mb-3 font-bold text-black">
+            {editingId ? "Edit bagging record" : "New bagging record"}
+          </h3>
+
+          {(products.length === 0 || processes.length === 0) && (
+            <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              Products and processing records must exist in the database before
+              bagging can be recorded.
+            </p>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Date" htmlFor="date" error={fieldErrors.date}>
+              <input
+                id="date"
+                type="date"
+                value={form.date}
+                onChange={(event) => updateField("date", event.target.value)}
+                className={inputStyle}
+              />
+            </Field>
+
+            <Field label="Product" htmlFor="productId" error={fieldErrors.productId}>
+              <select
+                id="productId"
+                value={form.productId}
+                onChange={(event) => updateField("productId", event.target.value)}
+                className={inputStyle}
+              >
+                <option value="">Select a product...</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} ({product.code})
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Proc" htmlFor="procId" error={fieldErrors.procId}>
+              <select
+                id="procId"
+                value={form.procId}
+                onChange={(event) => updateField("procId", event.target.value)}
+                className={inputStyle}
+              >
+                <option value="">Select a process...</option>
+                {processes.map((process) => (
+                  <option key={process.id} value={process.id}>
+                    {process.number} · {process.description}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Quantity (bags)" htmlFor="quantity" error={fieldErrors.quantity}>
+              <input
+                id="quantity"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={form.quantity}
+                onChange={(event) => updateField("quantity", event.target.value)}
+                className={inputStyle}
+              />
+            </Field>
+
+            <Field label="Size (lbs per bag)" htmlFor="size" error={fieldErrors.size}>
+              <input
+                id="size"
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                list="bag-sizes"
+                value={form.size}
+                onChange={(event) => updateField("size", event.target.value)}
+                className={inputStyle}
+              />
+              <datalist id="bag-sizes">
+                <option value="25" />
+                <option value="50" />
+              </datalist>
+            </Field>
+
+            <Field label="Adjustment (+/- bags)" htmlFor="adjustment" error={fieldErrors.adjustment}>
+              <input
+                id="adjustment"
+                type="number"
+                step="1"
+                value={form.adjustment}
+                onChange={(event) => updateField("adjustment", event.target.value)}
+                className={inputStyle}
+              />
+            </Field>
+          </div>
+
+          {saveError && (
+            <p role="alert" className="mt-3 text-sm text-red-700">
+              {saveError}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-md border border-emerald-700 bg-emerald-600 px-10 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : editingId ? "Update" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="rounded-md border border-gray-400 bg-white px-8 py-1.5 text-sm font-semibold text-green-950 hover:bg-emerald-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Bag data table */}
       <div className="overflow-x-auto border border-gray-400">
@@ -75,23 +387,30 @@ export default function BaggingDataPage() {
           </thead>
 
           <tbody>
-            {filteredRecords.map((record) => (
-              <tr key={record.id} className="even:bg-gray-100">
-                <td className={cellStyle}>{record.date}</td>
+            {visibleRecords.map((record) => (
+              <tr
+                key={record.id}
+                onClick={() => openExistingRecord(record)}
+                title="Click to edit this record"
+                className={`cursor-pointer hover:bg-emerald-50 ${
+                  editingId === record.id ? "bg-emerald-50" : "even:bg-gray-100"
+                }`}
+              >
+                <td className={cellStyle}>{formatDate(record.date)}</td>
                 <td className={`${cellStyle} text-right`}>{record.quantity}</td>
                 <td className={`${cellStyle} text-right`}>{record.size}</td>
                 <td className={cellStyle}>{record.product}</td>
                 <td className={cellStyle}>{record.proc}</td>
                 <td className={`${cellStyle} text-center`}>
-                  <input type="checkbox" className="h-4 w-4 accent-emerald-600" />
+                  {formatAdjustment(record.adjustment)}
                 </td>
               </tr>
             ))}
 
-            {filteredRecords.length === 0 && (
+            {visibleRecords.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
-                  No matching records found.
+                  {loading ? "Loading records..." : "No matching records found."}
                 </td>
               </tr>
             )}
@@ -99,7 +418,39 @@ export default function BaggingDataPage() {
         </table>
       </div>
 
-      <Pagination start={1} end={12} total={100} />
+      {/* Record count and page buttons */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-700">
+        <p>
+          Showing {filteredRecords.length === 0 ? 0 : firstRow + 1}–
+          {firstRow + visibleRecords.length} of {filteredRecords.length} records
+        </p>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={pageButtonStyle}
+          >
+            <ArrowLeft size={14} />
+            Previous
+          </button>
+
+          <span className="px-2">
+            Page {currentPage} of {pageCount}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage === pageCount}
+            className={pageButtonStyle}
+          >
+            Next
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
     </SidebarLayout>
   );
 }

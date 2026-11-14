@@ -1,4 +1,4 @@
--- Bag Inventory tables. 
+-- Bag Inventory tables.
 
 CREATE TABLE IF NOT EXISTS public.processes (
     id SERIAL PRIMARY KEY,
@@ -14,37 +14,32 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS public.bag_inventory_items (
-    id SERIAL PRIMARY KEY,
-    process_id INTEGER NOT NULL REFERENCES public.processes(id) ON DELETE RESTRICT,
-    sale_item_id INTEGER NOT NULL REFERENCES public.sale_items(id) ON DELETE RESTRICT,
-    factor_lbs INTEGER NOT NULL CHECK (factor_lbs > 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (process_id, sale_item_id, factor_lbs)
-);
-
--- Adjustment records may be negative to correct a count; all others must be positive.
+-- Bags made from a processing record. adjustment corrects the count (+/-).
 CREATE TABLE IF NOT EXISTS public.bagging_records (
     id SERIAL PRIMARY KEY,
-    inventory_item_id INTEGER NOT NULL REFERENCES public.bag_inventory_items(id) ON DELETE RESTRICT,
     bag_date DATE NOT NULL,
-    quantity INTEGER NOT NULL,
-    is_adjustment BOOLEAN NOT NULL DEFAULT FALSE,
-    status VARCHAR(20) NOT NULL DEFAULT 'Completed' CHECK (status IN ('Pending', 'Completed')),
+    quantity INTEGER NOT NULL CHECK (quantity >= 0),
+    size_lbs INTEGER NOT NULL CHECK (size_lbs > 0),
+    adjustment INTEGER NOT NULL DEFAULT 0,
+    sale_item_id INTEGER NOT NULL REFERENCES public.sale_items(id) ON DELETE RESTRICT,
+    process_id INTEGER NOT NULL REFERENCES public.processes(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (is_adjustment OR quantity > 0)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (quantity <> 0 OR adjustment <> 0)
 );
 
-CREATE INDEX IF NOT EXISTS bagging_records_inventory_item_id_idx
-ON public.bagging_records(inventory_item_id);
+CREATE INDEX IF NOT EXISTS bagging_records_process_id_sale_item_id_size_lbs_idx
+ON public.bagging_records(process_id, sale_item_id, size_lbs);
 
 CREATE TABLE IF NOT EXISTS public.bag_sales (
     id SERIAL PRIMARY KEY,
-    inventory_item_id INTEGER NOT NULL REFERENCES public.bag_inventory_items(id) ON DELETE RESTRICT,
     sale_date DATE NOT NULL,
     units_sold INTEGER NOT NULL CHECK (units_sold > 0),
+    size_lbs INTEGER NOT NULL CHECK (size_lbs > 0),
+    sale_item_id INTEGER NOT NULL REFERENCES public.sale_items(id) ON DELETE RESTRICT,
+    process_id INTEGER NOT NULL REFERENCES public.processes(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS bag_sales_inventory_item_id_idx
-ON public.bag_sales(inventory_item_id);
+CREATE INDEX IF NOT EXISTS bag_sales_process_id_sale_item_id_size_lbs_idx
+ON public.bag_sales(process_id, sale_item_id, size_lbs);
