@@ -11,11 +11,38 @@ import {
   clearFailedLogins,
 } from "../../../../lib/loginRateLimit";
 
+import { checkApiRateLimit } from "@/lib/apiRateLimit";
+import { API_RATE_LIMITS } from "@/lib/apiRateLimitConfig";
+import { rateLimitResponse } from "@/lib/apiRateLimitResponse";
+import { getLoginRateLimitKey } from "@/lib/loginClientIdentifier";
+
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
-    // Parse the submitted credentials.
+    // ==================================================
+    // Sprint 4: Throttle total login requests
+    // ==================================================
+
+    // During local development, requests share a fixed
+    // test identifier. Production requires a separately
+    // configured trusted client identifier.
+    //
+    // This limit is independent of the existing
+    // failed-login restriction for each username.
+    const rateLimit = await checkApiRateLimit({
+      key: getLoginRateLimitKey(),
+      ...API_RATE_LIMITS.login,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
+    // ==================================================
+    // Parse and validate submitted credentials
+    // ==================================================
+
     const body = await request.json();
     const { username, password } = body;
 
@@ -34,6 +61,10 @@ export async function POST(request) {
 
     const cleanUsername = username.trim();
 
+    // ==================================================
+    // Existing username-based failed-login restriction
+    // ==================================================
+
     // Check for an existing temporary login restriction.
     const limit = await checkLoginLimit(cleanUsername);
 
@@ -51,14 +82,18 @@ export async function POST(request) {
       );
     }
 
-    // Retrieve the account.
+    // ==================================================
+    // Retrieve account and verify credentials
+    // ==================================================
+
     const user = await prisma.users.findUnique({
       where: {
         username: cleanUsername,
       },
     });
 
-    // Verify credentials without revealing whether the account exists.
+    // Verify credentials without revealing whether
+    // the account exists.
     let passwordMatches = false;
 
     if (user && user.status === "Active") {
@@ -91,8 +126,12 @@ export async function POST(request) {
       );
     }
 
-    // Recheck before creating a session.
-    // This narrows the race with simultaneous failed requests.
+    // ==================================================
+    // Recheck restrictions before creating a session
+    // ==================================================
+
+    // This narrows the race with simultaneous
+    // failed login requests.
     const latestLimit = await checkLoginLimit(cleanUsername);
 
     if (latestLimit.blocked) {
@@ -109,7 +148,10 @@ export async function POST(request) {
       );
     }
 
-    // Create the authenticated session.
+    // ==================================================
+    // Create session and record successful login
+    // ==================================================
+
     await createSession(user.id);
 
     // Record the user's most recent successful login.

@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
+import { checkApiRateLimit } from "@/lib/apiRateLimit";
+import { API_RATE_LIMITS } from "@/lib/apiRateLimitConfig";
+import { rateLimitResponse } from "@/lib/apiRateLimitResponse";
 import { Prisma } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -41,6 +44,16 @@ export async function GET(request, { params }) {
         { error: "Access denied" },
         { status: 403 }
       );
+    }
+
+    // Sprint 4: Shared User Management throttling.
+    const rateLimit = await checkApiRateLimit({
+      key: `user-management:user:${adminId}`,
+      ...API_RATE_LIMITS.userManagement,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
     }
 
     // Read the selected user's ID from the URL.
@@ -136,6 +149,16 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    // Sprint 4: Shared User Management throttling.
+    const rateLimit = await checkApiRateLimit({
+      key: `user-management:user:${adminId}`,
+      ...API_RATE_LIMITS.userManagement,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
     // Validate the selected user ID.
     const { id } = await params;
     const userId = Number(id);
@@ -217,8 +240,7 @@ export async function PATCH(request, { params }) {
     ) {
       return NextResponse.json(
         {
-          error: "Username must be 1-50 characters.",
-        },
+          error: "Username must be 1-50 characters." },
         { status: 400 }
       );
     }

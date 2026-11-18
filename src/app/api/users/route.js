@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
+import { checkApiRateLimit } from "@/lib/apiRateLimit";
+import { API_RATE_LIMITS } from "@/lib/apiRateLimitConfig";
+import { rateLimitResponse } from "@/lib/apiRateLimitResponse";
 import bcrypt from "bcryptjs";
 
 export const runtime = "nodejs";
@@ -10,6 +13,7 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const userId = await getSessionUserId();
+
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -31,6 +35,17 @@ export async function GET() {
         { error: "Access denied" },
         { status: 403 }
       );
+    }
+
+    // Sprint 4: Apply per-Administrator API throttling.
+    // All User Management operations share this allowance.
+    const rateLimit = await checkApiRateLimit({
+      key: `user-management:user:${userId}`,
+      ...API_RATE_LIMITS.userManagement,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
     }
 
     const users = await prisma.users.findMany({
@@ -89,6 +104,19 @@ export async function POST(request) {
         { status: 403 }
       );
     }
+
+
+    // Sprint 4: Throttle User Management requests.
+    // Shares the same 45-request allowance as GET /api/users.
+    const rateLimit = await checkApiRateLimit({
+      key: `user-management:user:${adminId}`,
+      ...API_RATE_LIMITS.userManagement,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
 
     let body;
 
