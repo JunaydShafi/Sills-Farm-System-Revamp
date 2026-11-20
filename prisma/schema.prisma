@@ -11,17 +11,20 @@ datasource db {
 /// This table contains check constraints and requires additional setup for migrations.
 /// Visit https://pris.ly/d/check-constraints for more info.
 model users {
-  id            Int             @id @default(autoincrement())
-  employee_id   Int?
-  name          String          @db.VarChar(150)
-  username      String          @unique @db.VarChar(50)
-  password_hash String
-  role          String          @default("Employee") @db.VarChar(20)
-  status        String          @default("Active") @db.VarChar(20)
-  last_login    DateTime?       @db.Timestamptz(6)
-  created_at    DateTime        @default(now()) @db.Timestamptz(6)
-  is_owner      Boolean         @unique(map: "users_single_owner_idx", where: raw("(is_owner = true)")) @default(false)
-  user_sessions user_sessions[]
+  id                Int                 @id @default(autoincrement())
+  employee_id       Int?
+  name              String              @db.VarChar(150)
+  username          String              @unique @db.VarChar(50)
+  email             String?             @unique @db.VarChar(254)
+  email_verified_at DateTime?           @db.Timestamptz(6)
+  password_hash     String
+  role              String              @default("Employee") @db.VarChar(20)
+  status            String              @default("Active") @db.VarChar(20)
+  last_login        DateTime?           @db.Timestamptz(6)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  is_owner          Boolean             @unique(map: "users_single_owner_idx", where: raw("(is_owner = true)")) @default(false)
+  user_sessions     user_sessions[]
+  user_email_tokens user_email_tokens[]
 }
 
 model user_sessions {
@@ -35,6 +38,29 @@ model user_sessions {
   @@index([expires_at], map: "idx_user_sessions_expires_at")
   @@index([user_id], map: "idx_user_sessions_user_id")
 }
+
+
+// Stores secure, single-use tokens for email verification
+// and password recovery.
+// Only token hashes are stored, never the original tokens.
+
+model user_email_tokens {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    Int
+  email      String    @db.VarChar(254)
+  token_hash String    @unique @db.VarChar(64)
+  purpose    String    @db.VarChar(30)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  revoked_at DateTime? @db.Timestamptz(6)
+
+  users users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_email_tokens_user_fk")
+
+  @@index([user_id, purpose], map: "idx_user_email_tokens_user_purpose")
+  @@index([expires_at], map: "idx_user_email_tokens_expires_at")
+}
+
 
 model login_attempts {
   username     String    @id @db.VarChar(50)

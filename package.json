@@ -1,3 +1,4 @@
+
 {
   "name": "sills-farm-system-revamp",
   "version": "0.1.0",
@@ -20,6 +21,7 @@
     "radix-ui": "^1.8.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "resend": "^6.39.0",
     "server-only": "^0.0.1",
     "usa-states": "^0.0.6"
   },
@@ -31,5 +33,10 @@
     "prisma": "^7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15"
+  },
+  "overrides": {
+    "@prisma/config@7.10.1": {
+      "effect": "3.22.1"
+    }
   }
 }

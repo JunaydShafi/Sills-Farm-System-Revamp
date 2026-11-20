@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/lib/session";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { API_RATE_LIMITS } from "@/lib/apiRateLimitConfig";
 import { rateLimitResponse } from "@/lib/apiRateLimitResponse";
+import { validateEmail } from "@/lib/emailValidation";
 import bcrypt from "bcryptjs";
 
 export const runtime = "nodejs";
@@ -105,7 +106,6 @@ export async function POST(request) {
       );
     }
 
-
     // Sprint 4: Throttle User Management requests.
     // Shares the same 45-request allowance as GET /api/users.
     const rateLimit = await checkApiRateLimit({
@@ -116,7 +116,6 @@ export async function POST(request) {
     if (!rateLimit.allowed) {
       return rateLimitResponse(rateLimit);
     }
-
 
     let body;
 
@@ -156,6 +155,23 @@ export async function POST(request) {
       );
     }
 
+    // Sprint 4: Email verification status is managed
+    // exclusively by the server.
+    if (
+      Object.prototype.hasOwnProperty.call(
+        body,
+        "email_verified_at"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Email verification status cannot be assigned manually.",
+        },
+        { status: 403 }
+      );
+    }
+
     // Never accept a password hash from the browser.
     if (
       Object.prototype.hasOwnProperty.call(
@@ -169,7 +185,7 @@ export async function POST(request) {
       );
     }
 
-    const { name, username, role, status, password } =
+    const { name, username, email, role, status, password } =
       body;
 
     if (
@@ -225,6 +241,20 @@ export async function POST(request) {
     const cleanName = name.trim();
     const cleanUsername = username.trim();
 
+    // Sprint 4: Validate and normalize the optional
+    // email address for password recovery.
+    const emailValidation = validateEmail(email);
+
+    if (!emailValidation.valid) {
+      return NextResponse.json(
+        { error: emailValidation.error },
+        { status: 400 }
+      );
+    }
+
+    const cleanEmail = emailValidation.email;
+
+    // Prevent duplicate usernames.
     const existingUser = await prisma.users.findUnique({
       where: { username: cleanUsername },
       select: { id: true },
@@ -237,12 +267,33 @@ export async function POST(request) {
       );
     }
 
+    // Sprint 4: Prevent multiple user accounts from
+    // sharing the same email address.
+    if (cleanEmail !== null) {
+      const existingEmail = await prisma.users.findUnique({
+        where: { email: cleanEmail },
+        select: { id: true },
+      });
+
+      if (existingEmail) {
+        return NextResponse.json(
+          { error: "That email address is already in use." },
+          { status: 409 }
+        );
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Create the new user.
+    // Email addresses remain unverified until the
+    // user completes the email verification process.
     const newUser = await prisma.users.create({
       data: {
         name: cleanName,
         username: cleanUsername,
+        email: cleanEmail,
+        email_verified_at: null,
         password_hash: passwordHash,
         role,
         status,
@@ -252,6 +303,8 @@ export async function POST(request) {
         id: true,
         name: true,
         username: true,
+        email: true,
+        email_verified_at: true,
         role: true,
         status: true,
         created_at: true,
@@ -267,9 +320,14 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
+    // Handle concurrent requests that violate a
+    // username or email uniqueness constraint.
     if (error.code === "P2002") {
       return NextResponse.json(
-        { error: "That username is already taken." },
+        {
+          error:
+            "That username or email address is already in use.",
+        },
         { status: 409 }
       );
     }

@@ -5,6 +5,8 @@ import { getSessionUserId } from "@/lib/session";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { API_RATE_LIMITS } from "@/lib/apiRateLimitConfig";
 import { rateLimitResponse } from "@/lib/apiRateLimitResponse";
+import { validateEmail } from "@/lib/emailValidation";
+import { revokeUserEmailTokens } from "@/lib/emailTokenService";
 import { Prisma } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -74,6 +76,8 @@ export async function GET(request, { params }) {
         id: true,
         name: true,
         username: true,
+        email: true,
+        email_verified_at: true,
         role: true,
         status: true,
         is_owner: true,
@@ -214,7 +218,28 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    // Email verification is controlled exclusively by the server.
+    if (Object.prototype.hasOwnProperty.call(body, "email_verified_at")) {
+      return NextResponse.json(
+        { error: "Email verification status cannot be assigned manually." },
+        { status: 403 }
+      );
+    }
+
     const { name, username, role, status } = body;
+
+    // An omitted email preserves the existing address.
+    const emailProvided = Object.prototype.hasOwnProperty.call(body, "email");
+    const emailValidation = validateEmail(body.email);
+
+    if (!emailValidation.valid) {
+      return NextResponse.json(
+        { error: emailValidation.error },
+        { status: 400 }
+      );
+    }
+
+    const cleanEmail = emailValidation.email;
 
     // ==================================================
     // Validate editable fields
@@ -240,7 +265,8 @@ export async function PATCH(request, { params }) {
     ) {
       return NextResponse.json(
         {
-          error: "Username must be 1-50 characters." },
+          error: "Username must be 1-50 characters.",
+        },
         { status: 400 }
       );
     }
@@ -343,6 +369,7 @@ export async function PATCH(request, { params }) {
                 where: { id: userId },
                 select: {
                   id: true,
+                  email: true,
                   role: true,
                   status: true,
                   is_owner: true,
@@ -396,6 +423,24 @@ export async function PATCH(request, { params }) {
             }
 
             // ==========================================
+            // Prevent duplicate emails and detect address changes.
+            // ==========================================
+
+            const emailChanged =
+              emailProvided && cleanEmail !== existingUser.email;
+
+            if (emailChanged && cleanEmail !== null) {
+              const duplicateEmail = await tx.users.findUnique({
+                where: { email: cleanEmail },
+                select: { id: true },
+              });
+
+              if (duplicateEmail && duplicateEmail.id !== userId) {
+                throw new Error("EMAIL_TAKEN");
+              }
+            }
+
+            // ==========================================
             // Protect the last active Administrator
             // ==========================================
 
@@ -435,6 +480,13 @@ export async function PATCH(request, { params }) {
                 role,
                 status,
 
+                // Changing or removing an email clears verification.
+                // An omitted or unchanged email preserves verification.
+                ...(emailChanged && {
+                  email: cleanEmail,
+                  email_verified_at: null,
+                }),
+
                 // Only update the password hash when
                 // a new password was provided.
                 ...(newPasswordHash !== undefined && {
@@ -447,6 +499,8 @@ export async function PATCH(request, { params }) {
                 id: true,
                 name: true,
                 username: true,
+                email: true,
+                email_verified_at: true,
                 role: true,
                 status: true,
                 is_owner: true,
@@ -471,6 +525,25 @@ export async function PATCH(request, { params }) {
                   revoked_at: new Date(),
                 },
               });
+            }
+
+            // ==========================================
+            // Revoke outstanding email tokens
+            // ==========================================
+
+            // Sensitive account changes invalidate all
+            // outstanding email verification and password
+            // recovery tokens associated with this account.
+            //
+            // Revocation occurs inside the same transaction
+            // as the account update and session revocation.
+            if (
+              emailChanged ||
+              existingUser.role !== role ||
+              existingUser.status !== status ||
+              newPasswordHash !== undefined
+            ) {
+              await revokeUserEmailTokens(tx, userId);
             }
 
             return updated;
@@ -532,12 +605,24 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    if (
-      error.message === "USERNAME_TAKEN" ||
-      error.code === "P2002"
-    ) {
+    if (error.message === "USERNAME_TAKEN") {
       return NextResponse.json(
         { error: "That username is already taken." },
+        { status: 409 }
+      );
+    }
+
+    if (error.message === "EMAIL_TAKEN") {
+      return NextResponse.json(
+        { error: "That email address is already in use." },
+        { status: 409 }
+      );
+    }
+
+    // Handle concurrent requests that violate a unique constraint.
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "That username or email address is already in use." },
         { status: 409 }
       );
     }

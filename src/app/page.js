@@ -1,9 +1,72 @@
-
 "use client";
 
 import { useState } from "react";
 import Image from "next/image";
-import { UserRound, LockKeyhole, Eye, EyeOff, LogIn } from "lucide-react";
+import Link from "next/link";
+import {
+  UserRound,
+  LockKeyhole,
+  Eye,
+  EyeOff,
+  LogIn,
+} from "lucide-react";
+
+const VERIFICATION_STORAGE_KEY =
+  "sills_farm_email_verification";
+
+// ======================================================
+// Determine the permitted destination after login
+// ======================================================
+
+function getLoginDestination() {
+  const url = new URL(window.location.href);
+
+  const continuation = url.searchParams.get("continue");
+
+  // Only allow explicitly approved internal destinations.
+  if (continuation === "verify-email") {
+    try {
+      const token = sessionStorage.getItem(
+        VERIFICATION_STORAGE_KEY
+      );
+
+      // Continue only when a properly formatted
+      // verification token exists in this browser tab.
+      //
+      // The token's actual validity and ownership
+      // will be checked by the verification API.
+      if (
+        typeof token === "string" &&
+        /^[a-f0-9]{64}$/.test(token)
+      ) {
+        return "/verify-email";
+      }
+
+      sessionStorage.removeItem(
+        VERIFICATION_STORAGE_KEY
+      );
+    } catch {
+      // If browser storage is unavailable,
+      // normal login must still work.
+    }
+  }
+
+  // Normal login must not retain an abandoned
+  // email verification token.
+  try {
+    sessionStorage.removeItem(
+      VERIFICATION_STORAGE_KEY
+    );
+  } catch {
+    // Storage availability must not prevent login.
+  }
+
+  return "/main-dashboard";
+}
+
+// ======================================================
+// Login page
+// ======================================================
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -12,8 +75,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // ====================================================
+  // Authentication
+  // ====================================================
+
   async function handleLogin(event) {
     event.preventDefault();
+
     setError("");
     setIsLoading(true);
 
@@ -34,23 +102,37 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Login failed. Please try again.");
+        setError(
+          data.error || "Login failed. Please try again."
+        );
+
         return;
       }
 
       // The server has verified the credentials and created
       // the authenticated session.
       //
-      // Use a full-page navigation so the protected layout
+      // Determine whether this is a normal login or
+      // a continuation of email verification.
+      const destination = getLoginDestination();
+
+      // Use full-page navigation so the destination
       // receives the newly created session cookie.
-      window.location.replace("/main-dashboard");
+      window.location.replace(destination);
     } catch (error) {
       console.error("Login request failed:", error);
-      setError("Unable to connect to the server. Please try again.");
+
+      setError(
+        "Unable to connect to the server. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   }
+
+  // ====================================================
+  // Page appearance
+  // ====================================================
 
   return (
     <main
@@ -60,6 +142,7 @@ export default function LoginPage() {
       }}
     >
       <div className="w-full max-w-[540px] rounded-lg border border-gray-500 bg-[#f1f2ef] px-8 py-7 shadow-2xl sm:px-12">
+
         {/* Farm logo and title */}
         <div className="flex flex-col items-center">
           <Image
@@ -85,6 +168,7 @@ export default function LoginPage() {
           className="mx-auto mt-6 max-w-[390px] border-t border-gray-400 pt-5"
         >
           <div className="space-y-5">
+
             {/* Username */}
             <div>
               <label
@@ -104,7 +188,9 @@ export default function LoginPage() {
                   id="username"
                   type="text"
                   value={username}
-                  onChange={(event) => setUsername(event.target.value)}
+                  onChange={(event) =>
+                    setUsername(event.target.value)
+                  }
                   placeholder="Enter your username..."
                   autoComplete="username"
                   required
@@ -132,7 +218,9 @@ export default function LoginPage() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
                   placeholder="Enter your password..."
                   autoComplete="current-password"
                   required
@@ -141,10 +229,14 @@ export default function LoginPage() {
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
                   className="text-green-950 hover:text-emerald-600"
                   aria-label={
-                    showPassword ? "Hide password" : "Show password"
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
                   }
                 >
                   {showPassword ? (
@@ -153,6 +245,25 @@ export default function LoginPage() {
                     <Eye size={22} />
                   )}
                 </button>
+              </div>
+
+              {/* Forgot Password link */}
+              <div className="mt-2 flex justify-end">
+                {isLoading ? (
+                  <span
+                    aria-disabled="true"
+                    className="text-sm font-medium text-gray-400"
+                  >
+                    Forgot Password?
+                  </span>
+                ) : (
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-medium text-green-900 transition hover:text-emerald-600 hover:underline"
+                  >
+                    Forgot Password?
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -173,7 +284,10 @@ export default function LoginPage() {
               className="flex w-full items-center justify-center gap-3 rounded-md border border-green-800 bg-emerald-600 px-4 py-3 text-lg font-bold italic text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LogIn size={24} />
-              {isLoading ? "Signing In..." : "Sign In"}
+
+              {isLoading
+                ? "Signing In..."
+                : "Sign In"}
             </button>
           </div>
         </form>

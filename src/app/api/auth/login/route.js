@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
@@ -8,7 +7,6 @@ import { createSession } from "../../../../lib/session";
 import {
   checkLoginLimit,
   recordFailedLogin,
-  clearFailedLogins,
 } from "../../../../lib/loginRateLimit";
 
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
@@ -43,7 +41,19 @@ export async function POST(request) {
     // Parse and validate submitted credentials
     // ==================================================
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+
+    if (
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body)
+    ) {
+      return NextResponse.json(
+        { error: "Valid username and password are required." },
+        { status: 400 }
+      );
+    }
+
     const { username, password } = body;
 
     if (
@@ -90,10 +100,16 @@ export async function POST(request) {
       where: {
         username: cleanUsername,
       },
+      select: {
+        id: true,
+        username: true,
+        password_hash: true,
+        status: true,
+      },
     });
 
-    // Verify credentials without revealing whether
-    // the account exists.
+    // Use the same authentication error message for
+    // nonexistent accounts and incorrect credentials.
     let passwordMatches = false;
 
     if (user && user.status === "Active") {
@@ -149,34 +165,55 @@ export async function POST(request) {
     }
 
     // ==================================================
-    // Create session and record successful login
+    // Sprint 4: Create session using account-level locking
     // ==================================================
 
-    await createSession(user.id);
-
-    // Record the user's most recent successful login.
-    await prisma.users.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        last_login: new Date(),
-      },
+    // Pass the credentials that were originally checked.
+    // Session creation will acquire the account lock and
+    // confirm that these credentials are still current.
+    //
+    // This prevents a concurrent password change from
+    // allowing stale credentials to create a new session.
+    const authenticatedUser = await createSession({
+      userId: user.id,
+      expectedUsername: user.username,
+      expectedPasswordHash: user.password_hash,
     });
 
-    // Reset the failed-attempt counter.
-    await clearFailedLogins(cleanUsername);
+    // Authentication may become stale if the account is
+    // modified while the login request is processing.
+    if (!authenticatedUser) {
+      return NextResponse.json(
+        { error: "Invalid username or password." },
+        {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: "Login successful. Session created.",
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        role: user.role,
+    // Session creation, last_login updates, and failed-login
+    // counter cleanup now occur in a single transaction.
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Login successful. Session created.",
+        user: {
+          id: authenticatedUser.id,
+          name: authenticatedUser.name,
+          username: authenticatedUser.username,
+          role: authenticatedUser.role,
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error("Login failed:", error);
 
