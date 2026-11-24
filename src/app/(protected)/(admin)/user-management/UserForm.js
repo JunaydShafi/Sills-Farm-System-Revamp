@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,12 +13,16 @@ import {
   Shield,
   RotateCcw,
   Save,
+  Mail,
+  Send,
 } from "lucide-react";
 import FarmLayout from "../../../FarmLayout";
 
 const emptyForm = {
   employee: "",
   username: "",
+  email: "",
+  emailVerifiedAt: null,
   role: "Employee",
   status: "Active",
   password: "",
@@ -40,10 +43,14 @@ export default function UserForm({ mode = "add" }) {
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [sendingVerification, setSendingVerification] =
+    useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [createdUser, setCreatedUser] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [loadedUserId, setLoadedUserId] = useState(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
@@ -89,6 +96,8 @@ export default function UserForm({ mode = "add" }) {
         const loadedForm = {
           employee: user.name,
           username: user.username,
+          email: user.email ?? "",
+          emailVerifiedAt: user.email_verified_at ?? null,
           role: user.role,
           status: user.status,
           password: "",
@@ -99,11 +108,14 @@ export default function UserForm({ mode = "add" }) {
           setForm(loadedForm);
           setOriginalForm(loadedForm);
           setIsOwner(user.is_owner === true);
+          setLoadedUserId(userId);
           setError("");
+          setMessage("");
           setLoading(false);
         }
       } catch (err) {
         if (!controller.signal.aborted) {
+          setLoadedUserId(null);
           setError(err.message || "Unable to load user.");
           setLoading(false);
         }
@@ -120,6 +132,8 @@ export default function UserForm({ mode = "add" }) {
   // ==================================================
 
   function updateField(field, value) {
+    if (sendingVerification) return;
+
     setForm((previous) => ({
       ...previous,
       [field]: value,
@@ -134,6 +148,8 @@ export default function UserForm({ mode = "add" }) {
   // ==================================================
 
   function clearForm() {
+    if (saving || sendingVerification) return;
+
     setForm(
       isEditing
         ? { ...originalForm }
@@ -154,7 +170,9 @@ export default function UserForm({ mode = "add" }) {
   async function handleSave(event) {
     event.preventDefault();
 
-    if (saving) return;
+    if (saving || sendingVerification || formUnavailable) {
+      return;
+    }
 
     if (
       isEditing &&
@@ -194,6 +212,26 @@ export default function UserForm({ mode = "add" }) {
       return;
     }
 
+    // ==================================================
+    // Sprint 4: Validate and normalize optional email
+    // ==================================================
+
+    const cleanEmail = form.email.trim().toLowerCase();
+
+    if (cleanEmail.length > 254) {
+      setError(
+        "Email address cannot exceed 254 characters."
+      );
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (cleanEmail && !emailPattern.test(cleanEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     // ADD MODE: A new user must have a password.
     if (!isEditing && !form.password) {
       setError("A password is required for new users.");
@@ -226,11 +264,23 @@ export default function UserForm({ mode = "add" }) {
     }
 
     // Build the data sent to the API.
+    // Verification status is controlled only by the server.
     const userData = {
       name: form.employee.trim(),
       username: form.username.trim(),
       role: form.role,
       status: form.status,
+
+      // Send email when creating a user or changing
+      // an existing user's email address.
+      ...(
+        (!isEditing ||
+          cleanEmail !== originalForm.email.trim().toLowerCase()) &&
+        {
+          email: cleanEmail || null,
+        }
+      ),
+
       ...(changingPassword && {
         password: form.password,
       }),
@@ -268,6 +318,9 @@ export default function UserForm({ mode = "add" }) {
         const savedForm = {
           employee: data.user.name,
           username: data.user.username,
+          email: data.user.email ?? "",
+          emailVerifiedAt:
+            data.user.email_verified_at ?? null,
           role: data.user.role,
           status: data.user.status,
           password: "",
@@ -298,6 +351,91 @@ export default function UserForm({ mode = "add" }) {
   }
 
   // ==================================================
+  // Sprint 4: Request email verification
+  // ==================================================
+
+  async function handleSendVerification() {
+    if (!canSendVerification) return;
+
+    setError("");
+    setMessage("");
+    setSendingVerification(true);
+
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(userId)}/verify-email`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      // Display the server-controlled rate-limit information.
+      if (response.status === 429) {
+        const retryAfter = Number(
+          response.headers.get("Retry-After") ||
+          data?.retryAfter ||
+          0
+        );
+
+        if (
+          Number.isFinite(retryAfter) &&
+          retryAfter > 0
+        ) {
+          const waitTime =
+            retryAfter >= 60
+              ? `${Math.ceil(retryAfter / 60)} minute(s)`
+              : `${Math.ceil(retryAfter)} second(s)`;
+
+          throw new Error(
+            `Too many verification requests. Please try again in ${waitTime}.`
+          );
+        }
+
+        throw new Error(
+          "Too many verification requests. Please try again later."
+        );
+      }
+
+      if (response.status === 401) {
+        throw new Error(
+          "Your session has expired. Please log in again."
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+          "Unable to send verification email."
+        );
+      }
+
+      // Successful delivery does NOT mean that the
+      // employee's email address has been verified.
+      //
+      // Only the confirmation endpoint may update
+      // email_verified_at after validating the token.
+      setMessage(
+        "Verification email sent successfully. The account holder must open the email, sign in, and confirm their email address."
+      );
+    } catch (err) {
+      setError(
+        err.message ||
+        "Unable to send verification email. Please try again."
+      );
+    } finally {
+      setSendingVerification(false);
+    }
+  }
+
+  // ==================================================
   // Styling and form availability
   // ==================================================
 
@@ -310,7 +448,49 @@ export default function UserForm({ mode = "add" }) {
 
   const formUnavailable =
     isEditing &&
-    (loading || (error && !form.employee) || invalidUserId);
+    (
+      loading ||
+      loadedUserId !== userId ||
+      (error && !form.employee) ||
+      invalidUserId
+    );
+
+  // Determine whether the email has been changed
+  // since the account was loaded or last saved.
+  const emailChanged =
+    form.email.trim().toLowerCase() !==
+    originalForm.email.trim().toLowerCase();
+
+  // An edited email must not display as verified.
+  const emailIsVerified =
+    isEditing &&
+    Boolean(form.email.trim()) &&
+    Boolean(form.emailVerifiedAt) &&
+    !emailChanged;
+
+  // Verification requests must use saved account information.
+  // Do not send an email while account changes are unsaved.
+  const hasUnsavedChanges =
+    isEditing &&
+    (
+      form.employee.trim() !== originalForm.employee.trim() ||
+      form.username.trim() !== originalForm.username.trim() ||
+      emailChanged ||
+      form.role !== originalForm.role ||
+      form.status !== originalForm.status ||
+      Boolean(form.password || form.confirmPassword)
+    );
+
+  const canSendVerification =
+    isEditing &&
+    !formUnavailable &&
+    !saving &&
+    !sendingVerification &&
+    !hasUnsavedChanges &&
+    Boolean(originalForm.email.trim()) &&
+    originalForm.status === "Active" &&
+    form.status === "Active" &&
+    !emailIsVerified;
 
   return (
     <FarmLayout>
@@ -330,6 +510,7 @@ export default function UserForm({ mode = "add" }) {
                 size={26}
                 className="text-black"
               />
+
               <h2 className="font-bold text-black">
                 {isEditing ? "Edit User" : "Add User"}
               </h2>
@@ -377,6 +558,7 @@ export default function UserForm({ mode = "add" }) {
                     <p>
                       New User ID: {createdUser.id}
                     </p>
+
                     <Link
                       href="/user-management"
                       className="mt-3 inline-flex rounded-md bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
@@ -397,7 +579,7 @@ export default function UserForm({ mode = "add" }) {
                   <p className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-green-950">
                     System Owner account: role and status are
                     locked. You can update your name, username,
-                    or password.
+                    email address, or password.
                   </p>
                 )}
 
@@ -420,6 +602,7 @@ export default function UserForm({ mode = "add" }) {
                       id="employee"
                       type="text"
                       value={form.employee}
+                      disabled={sendingVerification}
                       onChange={(event) =>
                         updateField(
                           "employee",
@@ -454,6 +637,7 @@ export default function UserForm({ mode = "add" }) {
                         id="username"
                         type="text"
                         value={form.username}
+                        disabled={sendingVerification}
                         onChange={(event) =>
                           updateField(
                             "username",
@@ -484,7 +668,10 @@ export default function UserForm({ mode = "add" }) {
                       <select
                         id="role"
                         value={form.role}
-                        disabled={isEditing && isOwner}
+                        disabled={
+                          (isEditing && isOwner) ||
+                          sendingVerification
+                        }
                         onChange={(event) =>
                           updateField(
                             "role",
@@ -496,12 +683,139 @@ export default function UserForm({ mode = "add" }) {
                         <option value="Employee">
                           Employee
                         </option>
+
                         <option value="Administrator">
                           Administrator
                         </option>
                       </select>
                     </div>
                   </div>
+                </div>
+
+                {/* Sprint 4: Optional Email Address */}
+                <div>
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <label
+                      htmlFor="email"
+                      className="font-semibold text-black"
+                    >
+                      Email Address
+                    </label>
+
+                    {isEditing && form.email.trim() && (
+                      <span
+                        className={`text-xs font-semibold ${
+                          emailIsVerified
+                            ? "text-green-700"
+                            : "text-amber-700"
+                        }`}
+                      >
+                        {emailChanged
+                          ? "Unsaved change"
+                          : emailIsVerified
+                            ? "Verified"
+                            : "Not verified"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <Mail
+                      size={18}
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-700"
+                    />
+
+                    <input
+                      id="email"
+                      type="email"
+                      value={form.email}
+                      disabled={sendingVerification}
+                      onChange={(event) =>
+                        updateField(
+                          "email",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Enter email address..."
+                      autoComplete="off"
+                      maxLength={254}
+                      aria-describedby="email-help"
+                      className={`${inputStyle} pl-10`}
+                    />
+                  </div>
+
+                  <p
+                    id="email-help"
+                    className="mt-1 text-xs text-gray-600"
+                  >
+                    Optional. Used for password recovery once
+                    email verification is completed.
+                  </p>
+
+                  {isEditing &&
+                    emailChanged &&
+                    originalForm.emailVerifiedAt && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Changing or removing this address will
+                        clear its verification status.
+                      </p>
+                    )}
+
+                  {/* Account must exist before verification. */}
+                  {!isEditing && form.email.trim() && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      After creating this account, open Edit User
+                      to send a verification email.
+                    </p>
+                  )}
+
+                  {/* Sprint 4: Email verification controls */}
+                  {isEditing &&
+                    Boolean(form.email.trim()) &&
+                    !emailIsVerified && (
+                      <div className="mt-3 rounded-md border border-gray-300 bg-white p-3">
+                        <button
+                          type="button"
+                          onClick={handleSendVerification}
+                          disabled={!canSendVerification}
+                          aria-busy={sendingVerification}
+                          className="inline-flex items-center justify-center gap-2 rounded-md border border-green-900 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Send size={17} />
+
+                          {sendingVerification
+                            ? "Sending Verification Email..."
+                            : "Send Verification Email"}
+                        </button>
+
+                        {hasUnsavedChanges ? (
+                          <p className="mt-2 text-xs text-amber-700">
+                            Save the account changes before
+                            sending a verification email.
+                          </p>
+                        ) : form.status !== "Active" ? (
+                          <p className="mt-2 text-xs text-amber-700">
+                            Inactive accounts cannot verify
+                            email addresses.
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs text-gray-600">
+                            The account holder must open the
+                            verification email and sign in
+                            to complete verification.
+                            The link expires after 24 hours.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                  {/* Verified status comes from PostgreSQL. */}
+                  {emailIsVerified && (
+                    <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-green-700">
+                      <Shield size={16} />
+                      This email address has been verified.
+                    </div>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -529,6 +843,7 @@ export default function UserForm({ mode = "add" }) {
                           : "password"
                       }
                       value={form.password}
+                      disabled={sendingVerification}
                       onChange={(event) =>
                         updateField(
                           "password",
@@ -595,6 +910,7 @@ export default function UserForm({ mode = "add" }) {
                           : "password"
                       }
                       value={form.confirmPassword}
+                      disabled={sendingVerification}
                       onChange={(event) =>
                         updateField(
                           "confirmPassword",
@@ -647,7 +963,10 @@ export default function UserForm({ mode = "add" }) {
                       type="radio"
                       name="status"
                       value="Active"
-                      disabled={isEditing && isOwner}
+                      disabled={
+                        (isEditing && isOwner) ||
+                        sendingVerification
+                      }
                       checked={form.status === "Active"}
                       onChange={() =>
                         updateField("status", "Active")
@@ -663,7 +982,10 @@ export default function UserForm({ mode = "add" }) {
                       type="radio"
                       name="status"
                       value="Inactive"
-                      disabled={isEditing && isOwner}
+                      disabled={
+                        (isEditing && isOwner) ||
+                        sendingVerification
+                      }
                       checked={form.status === "Inactive"}
                       onChange={() =>
                         updateField("status", "Inactive")
@@ -678,7 +1000,7 @@ export default function UserForm({ mode = "add" }) {
                   <button
                     type="button"
                     onClick={clearForm}
-                    disabled={saving}
+                    disabled={saving || sendingVerification}
                     className="inline-flex items-center gap-2 rounded-md border border-gray-500 bg-white px-5 py-2 font-semibold text-black hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw size={20} />
@@ -687,7 +1009,7 @@ export default function UserForm({ mode = "add" }) {
 
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || sendingVerification}
                     className="inline-flex items-center gap-2 rounded-md border border-green-900 bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Save size={20} />

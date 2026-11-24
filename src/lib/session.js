@@ -1,4 +1,3 @@
-
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
@@ -20,46 +19,151 @@ function getSecretKey() {
   return new TextEncoder().encode(secret);
 }
 
-// Create a session after successful login.
-export async function createSession(userId) {
+// ==================================================
+// Create a session after successful authentication.
+// ==================================================
+
+export async function createSession({
+  userId,
+  expectedUsername,
+  expectedPasswordHash,
+}) {
+  if (
+    !Number.isSafeInteger(userId) ||
+    userId <= 0 ||
+    typeof expectedUsername !== "string" ||
+    !expectedUsername ||
+    typeof expectedPasswordHash !== "string" ||
+    !expectedPasswordHash
+  ) {
+    throw new Error("Invalid session creation parameters.");
+  }
+
   const sessionId = randomUUID();
 
-  const expiresAt = new Date(
-    Date.now() + SESSION_DURATION * 1000
-  );
+  // Prepare the session token before modifying the database.
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const expiresAtSeconds = issuedAt + SESSION_DURATION;
+  const expiresAt = new Date(expiresAtSeconds * 1000);
 
-  // Record the session in PostgreSQL.
-  await prisma.user_sessions.create({
-    data: {
-      id: sessionId,
-      user_id: userId,
-      expires_at: expiresAt,
-    },
-  });
-
-  // Create a signed JWT linked to the database session.
   const token = await new SignJWT({
     sid: sessionId,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(String(userId))
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_DURATION}s`)
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(expiresAtSeconds)
     .sign(getSecretKey());
 
-  // Store the JWT in an HTTP-only cookie.
   const cookieStore = await cookies();
 
+  // ==================================================
+  // Sprint 4: Coordinate session creation with
+  // password changes and account updates.
+  // ==================================================
+
+  const authenticatedUser = await prisma.$transaction(
+    async (tx) => {
+      // Lock the account until the transaction completes.
+      // Password resets use the same account-level lock.
+      await tx.$queryRaw`
+        SELECT id
+        FROM public.users
+        WHERE id = ${userId}
+        FOR UPDATE
+      `;
+
+      // Retrieve the latest account information after
+      // acquiring the row lock.
+      const currentUser = await tx.users.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          password_hash: true,
+          role: true,
+          status: true,
+        },
+      });
+
+      // Reject authentication if account information
+      // changed after the original credential check.
+      if (
+        !currentUser ||
+        currentUser.status !== "Active" ||
+        currentUser.username !== expectedUsername ||
+        currentUser.password_hash !== expectedPasswordHash
+      ) {
+        return null;
+      }
+
+      // Record the session in PostgreSQL.
+      await tx.user_sessions.create({
+        data: {
+          id: sessionId,
+          user_id: currentUser.id,
+          expires_at: expiresAt,
+        },
+      });
+
+      // Record the most recent successful login.
+      await tx.users.update({
+        where: {
+          id: currentUser.id,
+        },
+        data: {
+          last_login: new Date(),
+        },
+      });
+
+      // Clear failed-login attempts atomically with
+      // successful session creation.
+      await tx.login_attempts.deleteMany({
+        where: {
+          username: currentUser.username,
+        },
+      });
+
+      // Return only safe account information.
+      return {
+        id: currentUser.id,
+        name: currentUser.name,
+        username: currentUser.username,
+        role: currentUser.role,
+      };
+    },
+    {
+      isolationLevel: "ReadCommitted",
+    }
+  );
+
+  // No session was created if authentication became stale.
+  if (!authenticatedUser) {
+    return null;
+  }
+
+  // Store the JWT only after the transaction succeeds.
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_DURATION,
+    maxAge: Math.max(
+      1,
+      expiresAtSeconds - Math.floor(Date.now() / 1000)
+    ),
   });
+
+  return authenticatedUser;
 }
 
+// ==================================================
 // Verify the JWT and check its database session.
+// ==================================================
+
 export async function getSessionUserId() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
@@ -111,7 +215,10 @@ export async function getSessionUserId() {
   }
 }
 
+// ==================================================
 // Revoke the session and remove its cookie.
+// ==================================================
+
 export async function deleteSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
