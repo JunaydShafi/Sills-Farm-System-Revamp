@@ -124,6 +124,7 @@ model order_items {
 
   // Quantity and pricing snapshots
   quantity   Decimal @db.Decimal(12, 3)
+  size_lbs   Int?
   unit_price Decimal @db.Decimal(12, 2)
   line_total Decimal @db.Decimal(12, 2)
 
