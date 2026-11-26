@@ -12,6 +12,8 @@ import {
   ChevronDown,
   X,
   Pencil,
+  LoaderCircle,
+  RotateCcw,
 } from "lucide-react";
 import CustomerLayout from "@/app/CustomerLayout";
 import CustomerStatus from "./_components/CustomerStatus";
@@ -56,8 +58,8 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [sortField, setSortField] = useState("name");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const [sortField, setSortField] = useState("code");
+  const [sortDirection, setSortDirection] = useState("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [pagination, setPagination] = useState({
@@ -66,6 +68,7 @@ export default function CustomersPage() {
   });
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [paginationLoading, setPaginationLoading] = useState(false);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
@@ -153,6 +156,7 @@ export default function CustomersPage() {
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
+          setPaginationLoading(false);
         }
       }
     }
@@ -175,17 +179,38 @@ export default function CustomersPage() {
     setPage(1);
   }
 
+  function resetFilters() {
+    setSearch("");
+    setDebouncedSearch("");
+    setStatusFilter("All");
+    setSortField("code");
+    setSortDirection("desc");
+    setPage(1);
+    setPageSize(5);
+  }
+
+  const hasActiveFilters =
+    search !== "" ||
+    statusFilter !== "All" ||
+    sortField !== "code" ||
+    sortDirection !== "desc" ||
+    page !== 1 ||
+    pageSize !== 5;
+
   function handleStatusFilter(value) {
+    setPaginationLoading(true);
     setStatusFilter(value);
     setPage(1);
   }
 
   function handlePageSize(value) {
+    setPaginationLoading(true);
     setPageSize(Number(value));
     setPage(1);
   }
 
   function handleSort(field) {
+    setPaginationLoading(true);
     if (sortField === field) {
       setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
     } else {
@@ -208,6 +233,11 @@ export default function CustomersPage() {
       zip: customer.zip ?? "",
       phone: customer.phone ?? "",
       status: customer.status ?? "Active",
+      shipping_same_as_main: customer.shipping_same_as_main ?? true,
+      shipping_address: customer.shipping_address ?? "",
+      shipping_city: customer.shipping_city ?? "",
+      shipping_state: customer.shipping_state ?? "",
+      shipping_zip: customer.shipping_zip ?? "",
     });
 
     setEditErrors({});
@@ -223,6 +253,18 @@ export default function CustomersPage() {
   }
 
   function handleEditChange(field, value) {
+    if (field === "phone") {
+      const digits = value.replace(/\D/g, "").slice(0, 10);
+
+      if (digits.length > 6) {
+        value = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+      } else if (digits.length > 3) {
+        value = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+      } else {
+        value = digits;
+      }
+    }
+
     setEditForm((current) => ({
       ...current,
       [field]: value,
@@ -234,12 +276,31 @@ export default function CustomersPage() {
       return updated;
     });
   }
+  function handleShippingAddressSelect(item) {
+    setEditForm((current) => ({
+      ...current,
+      shipping_address: item.street || item.label || current.shipping_address,
+      shipping_city: item.city || current.shipping_city,
+      shipping_state: item.state?.toUpperCase() || current.shipping_state,
+      shipping_zip: item.zip || current.shipping_zip,
+    }));
+
+    setEditErrors((current) => {
+      const updated = { ...current };
+
+      delete updated.shipping_address;
+      delete updated.shipping_city;
+      delete updated.shipping_state;
+      delete updated.shipping_zip;
+
+      return updated;
+    });
+  }
 
   function validateEditForm(form) {
     const errors = {};
 
     const limits = {
-      code: 30,
       name: 150,
       address: 255,
       city: 100,
@@ -277,6 +338,39 @@ export default function CustomersPage() {
       errors.state = "Please select a valid U.S. state.";
     }
 
+    // Validate shipping information only when it differs from the main address.
+    if (!form.shipping_same_as_main) {
+      const shippingFields = {
+        shipping_address: 255,
+        shipping_city: 100,
+        shipping_state: 2,
+        shipping_zip: 10,
+      };
+
+      for (const [field, maxLength] of Object.entries(shippingFields)) {
+        const value = form[field];
+
+        if (typeof value !== "string" || !value.trim()) {
+          errors[field] = "This field is required.";
+        } else if (value.trim().length > maxLength) {
+          errors[field] = `Maximum ${maxLength} characters allowed.`;
+        }
+      }
+
+      if (form.shipping_zip && !/^\d{5}$/.test(form.shipping_zip.trim())) {
+        errors.shipping_zip = "ZIP Code must contain exactly 5 digits.";
+      }
+
+      if (
+        form.shipping_state &&
+        !usStates.some(
+          (state) => state.abbreviation === form.shipping_state.toUpperCase(),
+        )
+      ) {
+        errors.shipping_state = "Please select a valid U.S. state.";
+      }
+    }
+
     return errors;
   }
 
@@ -305,13 +399,26 @@ export default function CustomersPage() {
         },
         credentials: "same-origin",
         body: JSON.stringify({
-          code: editForm.code.trim(),
           name: editForm.name.trim(),
           address: editForm.address.trim(),
           city: editForm.city.trim(),
           state: editForm.state.toUpperCase(),
           zip: editForm.zip.trim(),
           phone: editForm.phone.trim(),
+
+          shipping_same_as_main: editForm.shipping_same_as_main,
+          shipping_address: editForm.shipping_same_as_main
+            ? null
+            : editForm.shipping_address.trim(),
+          shipping_city: editForm.shipping_same_as_main
+            ? null
+            : editForm.shipping_city.trim(),
+          shipping_state: editForm.shipping_same_as_main
+            ? null
+            : editForm.shipping_state.toUpperCase(),
+          shipping_zip: editForm.shipping_same_as_main
+            ? null
+            : editForm.shipping_zip.trim(),
         }),
       });
 
@@ -427,9 +534,41 @@ export default function CustomersPage() {
   const endIndex = total === 0 ? 0 : Math.min(page * pageSize, total);
 
   const pageNumbers = getPageNumbers(page, totalPages);
+  function handlePageChange(nextPage) {
+    if (nextPage === page) return;
+    setPaginationLoading(true);
+    setPage(nextPage);
+  }
 
   return (
     <CustomerLayout>
+      {/* Loading overlay during customer database requests */}
+      {loading && (!hasLoaded || paginationLoading) && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Loading customer records"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-white/90"
+        >
+          <div className="flex flex-col items-center gap-4 rounded-xl bg-white px-10 py-8 shadow-lg">
+            {/* Pleasant Grove Farms logo will go here */}
+
+            <LoaderCircle
+              className="h-10 w-10 animate-spin text-green-700"
+              aria-hidden="true"
+            />
+
+            <p className="text-lg font-semibold text-gray-800">
+              Loading Customers...
+            </p>
+
+            <p className="text-sm text-gray-600">
+              Please wait while customer records are retrieved.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-6xl">
         {/* Heading and New Customers button */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
@@ -473,6 +612,18 @@ export default function CustomersPage() {
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-green-700 hover:bg-gray-100 hover:text-green-700"
+              title="Reset search, filters, sorting, and pagination"
+            >
+              <RotateCcw size={16} aria-hidden="true" />
+              Reset
+            </button>
+          )}
         </div>
 
         {/* Subtle loading indicator for subsequent database requests */}
@@ -731,7 +882,7 @@ export default function CustomersPage() {
               <button
                 type="button"
                 disabled={isLoading || page === 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
                 className="rounded border border-gray-300 px-3 py-2 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
@@ -750,7 +901,7 @@ export default function CustomersPage() {
                   <button
                     key={pageNumber}
                     type="button"
-                    onClick={() => setPage(pageNumber)}
+                    onClick={() => handlePageChange(pageNumber)}
                     disabled={isLoading}
                     aria-label={`Go to page ${pageNumber}`}
                     aria-current={page === pageNumber ? "page" : undefined}
@@ -768,9 +919,7 @@ export default function CustomersPage() {
               <button
                 type="button"
                 disabled={isLoading || page >= totalPages}
-                onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
-                }
+                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                 className="rounded border border-gray-300 px-3 py-2 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
@@ -801,6 +950,7 @@ export default function CustomersPage() {
         handleEditChange={handleEditChange}
         saveEditCustomer={saveEditCustomer}
         usStates={usStates}
+        handleShippingAddressSelect={handleShippingAddressSelect}
       />
     </CustomerLayout>
   );

@@ -10,6 +10,7 @@ export default function CustomerStatus({
   confirmStatusChange,
 }) {
   return (
+    //Confirmation dialog prevents accidental customer status changes
     <AlertDialog.Root
       open={pendingCustomer !== null}
       onOpenChange={(open) => {

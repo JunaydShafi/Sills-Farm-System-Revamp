@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import CustomerLayout from "@/app/CustomerLayout";
-import FarmLayout from "@/app/FarmLayout";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 import { UsaStates } from "usa-states";
@@ -12,7 +11,6 @@ const usStates = new UsaStates().states;
 
 // Initial form values.
 const initialForm = {
-  code: "",
   name: "",
   address: "",
   city: "",
@@ -20,10 +18,16 @@ const initialForm = {
   zip: "",
   phone: "",
   status: "Active",
+
+  // Shipping information
+  shipping_same_as_main: true,
+  shipping_address: "",
+  shipping_city: "",
+  shipping_state: "",
+  shipping_zip: "",
 };
 
 const requiredFields = {
-  code: "Customer Code",
   name: "Customer Name",
   address: "Street Address",
   city: "City",
@@ -34,7 +38,6 @@ const requiredFields = {
 };
 
 const maxLengths = {
-  code: 30,
   name: 150,
   address: 255,
   city: 100,
@@ -42,6 +45,10 @@ const maxLengths = {
   zip: 10,
   phone: 25,
   status: 20,
+  shipping_address: 255,
+  shipping_city: 100,
+  shipping_state: 2,
+  shipping_zip: 10,
 };
 
 // Validate customer information before submission.
@@ -83,6 +90,37 @@ function validateForm(form) {
     errors.status = "Please select a valid status.";
   }
 
+  // Separate shipping fields are required only when different from main.
+  if (!form.shipping_same_as_main) {
+    const shippingFields = {
+      shipping_address: "Shipping Street Address",
+      shipping_city: "Shipping City",
+      shipping_state: "Shipping State",
+      shipping_zip: "Shipping ZIP Code",
+    };
+
+    for (const [field, label] of Object.entries(shippingFields)) {
+      const value = form[field].trim();
+
+      if (!value) {
+        errors[field] = `${label} is required.`;
+      } else if (value.length > maxLengths[field]) {
+        errors[field] = `${label} is too long.`;
+      }
+    }
+
+    if (form.shipping_zip.trim() && !/^\d{5}$/.test(form.shipping_zip.trim())) {
+      errors.shipping_zip = "ZIP Code must contain exactly 5 digits.";
+    }
+
+    if (
+      form.shipping_state &&
+      !usStates.some((state) => state.abbreviation === form.shipping_state)
+    ) {
+      errors.shipping_state = "Please select a valid U.S. state.";
+    }
+  }
+
   return errors;
 }
 
@@ -94,8 +132,8 @@ export default function AddNewCustomerPage() {
   const [serverError, setServerError] = useState("");
   const [saving, setSaving] = useState(false);
   const [zipWarning, setZipWarning] = useState("");
-  // Update fields and revalidate after a submission attempt.
 
+  // Update fields and revalidate after a submission attempt.
   function updateField(event) {
     const { name } = event.target;
     let { value } = event.target;
@@ -114,7 +152,7 @@ export default function AddNewCustomerPage() {
     }
 
     // ZIP: allow only 5 digits and warn about invalid characters.
-    if (name === "zip") {
+    if (name === "zip" || name === "shipping_zip") {
       const containsInvalidCharacters = /[^\d]/.test(value);
 
       value = value.replace(/\D/g, "").slice(0, 5);
@@ -150,6 +188,26 @@ export default function AddNewCustomerPage() {
     setMessage("");
     setServerError("");
     setZipWarning("");
+
+    if (submitted) {
+      setErrors(validateForm(updatedForm));
+    }
+  }
+
+  function handleShippingAddressSelect(item) {
+    const updatedForm = {
+      ...form,
+      shipping_address: item.street || item.label || form.shipping_address,
+      shipping_city: item.city || form.shipping_city,
+      shipping_state: item.state?.toUpperCase() || form.shipping_state,
+      shipping_zip: item.zip || form.shipping_zip,
+    };
+
+    setForm(updatedForm);
+    setMessage("");
+    setServerError("");
+    setZipWarning("");
+
     if (submitted) {
       setErrors(validateForm(updatedForm));
     }
@@ -267,7 +325,20 @@ export default function AddNewCustomerPage() {
           className="bg-[#cecece] px-7 py-6"
         >
           <div className="grid grid-cols-1 gap-x-20 gap-y-8 sm:grid-cols-2">
-            {renderInput("Customer Code", "code", "Enter customer code...")}
+            <div>
+              <label className="mb-2 block font-bold">Customer Code</label>
+
+              <input
+                type="text"
+                value="Automatically assigned when saved"
+                disabled
+                className={`${fieldClass} cursor-not-allowed bg-gray-200 text-gray-600`}
+              />
+
+              <p className="mt-1 text-xs text-gray-600">
+                Customer Code is generated automatically.
+              </p>
+            </div>
 
             {renderInput("Customer Name", "name", "Enter customer name...")}
 
@@ -403,6 +474,141 @@ export default function AddNewCustomerPage() {
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Shipping Address */}
+          <div className="mt-8 border-t border-gray-400 pt-6">
+            <h3 className="mb-4 text-xl font-bold text-black">
+              Shipping Address
+            </h3>
+
+            <label className="mb-4 flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.shipping_same_as_main}
+                onChange={(event) => {
+                  const updatedForm = {
+                    ...form,
+                    shipping_same_as_main: event.target.checked,
+                  };
+
+                  setForm(updatedForm);
+                  setMessage("");
+                  setServerError("");
+
+                  if (submitted) {
+                    setErrors(validateForm(updatedForm));
+                  }
+                }}
+                disabled={saving}
+                className="h-4 w-4 accent-green-700"
+              />
+
+              <span className="font-semibold text-gray-800">
+                Same as main address
+              </span>
+            </label>
+
+            {form.shipping_same_as_main ? (
+              <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-900">
+                <p className="font-semibold">Using main address</p>
+                <p className="mt-1">{form.address || "Street address"}</p>
+                <p>
+                  {form.city || "City"}
+                  {form.state ? `, ${form.state}` : ""}
+                  {form.zip ? ` ${form.zip}` : ""}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-x-20 gap-y-6 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label
+                    htmlFor="shipping_address"
+                    className="mb-2 block font-bold"
+                  >
+                    Shipping Street Address{" "}
+                    <span className="text-red-700">*</span>
+                  </label>
+
+                  <AddressAutocomplete
+                    value={form.shipping_address}
+                    onChange={(event) =>
+                      updateField({
+                        target: {
+                          name: "shipping_address",
+                          value: event.target.value,
+                        },
+                      })
+                    }
+                    onSelect={handleShippingAddressSelect}
+                    disabled={saving}
+                    className={`${fieldClass} ${
+                      errors.shipping_address ? "border-red-600" : ""
+                    }`}
+                    error={errors.shipping_address}
+                  />
+
+                  {errors.shipping_address && (
+                    <p
+                      id="shipping_address-error"
+                      className="mt-1 text-sm text-red-700"
+                    >
+                      {errors.shipping_address}
+                    </p>
+                  )}
+                </div>
+
+                {renderInput(
+                  "Shipping City",
+                  "shipping_city",
+                  "Enter shipping city...",
+                )}
+
+                <div>
+                  <label
+                    htmlFor="shipping_state"
+                    className="mb-2 block font-bold"
+                  >
+                    Shipping State <span className="text-red-700">*</span>
+                  </label>
+
+                  <select
+                    id="shipping_state"
+                    name="shipping_state"
+                    value={form.shipping_state}
+                    onChange={updateField}
+                    disabled={saving}
+                    aria-invalid={Boolean(errors.shipping_state)}
+                    className={`${fieldClass} ${
+                      errors.shipping_state ? "border-red-600" : ""
+                    }`}
+                  >
+                    <option value="">Select state...</option>
+
+                    {usStates.map((state) => (
+                      <option
+                        key={state.abbreviation}
+                        value={state.abbreviation}
+                      >
+                        {state.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {errors.shipping_state && (
+                    <p className="mt-1 text-sm text-red-700">
+                      {errors.shipping_state}
+                    </p>
+                  )}
+                </div>
+
+                {renderInput(
+                  "Shipping ZIP Code",
+                  "shipping_zip",
+                  "Enter 5-digit shipping ZIP...",
+                )}
+              </div>
+            )}
           </div>
 
           {/* Form buttons */}

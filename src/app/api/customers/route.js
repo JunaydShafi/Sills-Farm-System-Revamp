@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { UsaStates } from "usa-states";
 import { prisma } from "../../../lib/prisma";
@@ -10,13 +11,72 @@ const validStateCodes = new Set(
   new UsaStates().states.map((state) => state.abbreviation),
 );
 
+function validateShippingAddress(body) {
+  const errors = {};
+  const shipping = {};
+
+  if (typeof body.shipping_same_as_main !== "boolean") {
+    errors.shipping_same_as_main = "Invalid shipping address selection.";
+    return { shipping, errors };
+  }
+
+  shipping.shipping_same_as_main = body.shipping_same_as_main;
+
+  if (body.shipping_same_as_main) {
+    shipping.shipping_address = null;
+    shipping.shipping_city = null;
+    shipping.shipping_state = null;
+    shipping.shipping_zip = null;
+
+    return { shipping, errors };
+  }
+
+  const fields = {
+    shipping_address: 255,
+    shipping_city: 100,
+    shipping_state: 2,
+    shipping_zip: 10,
+  };
+
+  for (const [field, maxLength] of Object.entries(fields)) {
+    const value = body[field];
+
+    if (typeof value !== "string" || !value.trim()) {
+      errors[field] = "This field is required.";
+      continue;
+    }
+
+    shipping[field] = value.trim();
+
+    if (shipping[field].length > maxLength) {
+      errors[field] = `Maximum ${maxLength} characters allowed.`;
+    }
+  }
+
+  if (
+    shipping.shipping_state &&
+    !validStateCodes.has(shipping.shipping_state.toUpperCase())
+  ) {
+    errors.shipping_state = "Please select a valid U.S. state.";
+  }
+
+  if (shipping.shipping_zip && !/^\d{5}$/.test(shipping.shipping_zip)) {
+    errors.shipping_zip = "ZIP Code must contain exactly 5 digits.";
+  }
+
+  if (shipping.shipping_state) {
+    shipping.shipping_state = shipping.shipping_state.toUpperCase();
+  }
+
+  return { shipping, errors };
+}
+
 // Validate customer information before saving to PostgreSQL.
 function validateCustomer(body) {
   const errors = {};
 
   // Maximum field lengths match the PostgreSQL customer model.
   const required = {
-    code: 30,
     name: 150,
     address: 255,
     city: 100,
@@ -43,10 +103,12 @@ function validateCustomer(body) {
       errors[field] = `Maximum ${maxLength} characters allowed.`;
     }
   }
+
   // Require a standard five-digit U.S. ZIP code.
   if (customer.zip && !/^\d{5}$/.test(customer.zip)) {
     errors.zip = "ZIP Code must contain exactly 5 digits.";
   }
+
   // Accept common phone formats but require exactly ten digits.
   if (customer.phone) {
     const digits = customer.phone.replace(/\D/g, "");
@@ -55,10 +117,12 @@ function validateCustomer(body) {
       errors.phone = "Enter a valid 10-digit phone number.";
     }
   }
+
   // Reject invalid U.S. state abbreviations.
   if (customer.state && !validStateCodes.has(customer.state.toUpperCase())) {
     errors.state = "Please select a valid U.S. state.";
   }
+
   // Customers can only have Active or Inactive status.
   if (customer.status && !["Active", "Inactive"].includes(customer.status)) {
     errors.status = "Status must be Active or Inactive.";
@@ -66,6 +130,7 @@ function validateCustomer(body) {
 
   return { customer, errors };
 }
+
 // Handle customer creation requests from the Add New Customer form.
 export async function POST(request) {
   try {
@@ -78,6 +143,7 @@ export async function POST(request) {
         { status: 401 },
       );
     }
+
     // Confirm the user's account is still active.
     const user = await prisma.users.findUnique({
       where: { id: userId },
@@ -108,8 +174,10 @@ export async function POST(request) {
         { status: 403 },
       );
     }
+
     // Return a client error when the request contains invalid JSON.
     let body;
+
     try {
       body = await request.json();
     } catch {
@@ -118,14 +186,23 @@ export async function POST(request) {
         { status: 400 },
       );
     }
+
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json(
         { error: "Invalid customer information." },
         { status: 400 },
       );
     }
+
     // Validate the request on the server before saving.
     const { customer, errors } = validateCustomer(body);
+
+    const { shipping, errors: shippingErrors } = validateShippingAddress({
+      ...body,
+      shipping_same_as_main: body.shipping_same_as_main ?? true,
+    });
+
+    Object.assign(errors, shippingErrors);
 
     if (Object.keys(errors).length > 0) {
       return NextResponse.json(
@@ -134,19 +211,27 @@ export async function POST(request) {
       );
     }
 
-    // Insert the validated customer into Azure PostgreSQL using Prisma.
-    const created = await prisma.customers.create({
-      data: {
-        customer_code: customer.code,
-        name: customer.name,
-        address: customer.address,
-        city: customer.city,
-        state: customer.state.toUpperCase(),
-        zip: customer.zip,
-        phone: customer.phone,
-        status: customer.status,
-      },
+    // Generate the next Customer Code and create the customer.
+    const created = await prisma.$transaction(async (tx) => {
+      const [result] = await tx.$queryRaw`
+        SELECT nextval('public.customer_code_seq'::regclass)::text AS code
+      `;
+
+      return tx.customers.create({
+        data: {
+          customer_code: result.code,
+          name: customer.name,
+          address: customer.address,
+          city: customer.city,
+          state: customer.state.toUpperCase(),
+          zip: customer.zip,
+          phone: customer.phone,
+          status: customer.status,
+          ...shipping,
+        },
+      });
     });
+
     // Return confirmation and the newly created customer's identifier.
     return NextResponse.json(
       {
@@ -168,6 +253,7 @@ export async function POST(request) {
         { status: 409 },
       );
     }
+
     // Log unexpected errors without exposing internal details to users.
     console.error("Customer creation failed:", error);
 
@@ -177,6 +263,7 @@ export async function POST(request) {
     );
   }
 }
+
 // Retrieve customers with server-side search, filtering,
 // sorting, and pagination.
 export async function GET(request) {
@@ -263,7 +350,6 @@ export async function GET(request) {
       code: "customer_code",
       name: "name",
       status: "status",
-
     };
 
     if (
@@ -307,27 +393,81 @@ export async function GET(request) {
     }
 
     // Retrieve only the requested records and total matching count.
-    const [customers, total] = await prisma.$transaction([
-      prisma.customers.findMany({
-        where,
-        select: {
-          id: true,
-          customer_code: true,
-          name: true,
-          address: true,
-          city: true,
-          state: true,
-          zip: true,
-          phone: true,
-          status: true,
-          created_at: true,
-        },
-        orderBy: [{ [sortFields[sortField]]: sortDirection }, { id: "asc" }],
-        skip,
-        take: pageSize,
-      }),
-      prisma.customers.count({ where }),
-    ]);
+    let customers;
+    let total;
+
+    if (sortField === "code") {
+      // Sort numeric Customer Codes correctly before applying pagination.
+      const searchPattern = `%${search}%`;
+
+      [customers, total] = await prisma.$transaction([
+        prisma.$queryRaw`
+          SELECT
+            id,
+            customer_code,
+            name,
+            address,
+            city,
+            state,
+            zip,
+            phone,
+            status,
+            created_at,
+            shipping_same_as_main,
+            shipping_address,
+            shipping_city,
+            shipping_state,
+            shipping_zip
+          FROM public.customers
+          WHERE (
+            ${search} = ''
+            OR customer_code ILIKE ${searchPattern}
+            OR name ILIKE ${searchPattern}
+          )
+          AND (${status} = 'All' OR status = ${status})
+          ORDER BY
+            CASE WHEN ${sortDirection} = 'asc'
+              THEN customer_code::numeric END ASC,
+            CASE WHEN ${sortDirection} = 'desc'
+              THEN customer_code::numeric END DESC,
+            id ASC
+          LIMIT ${pageSize}
+          OFFSET ${skip}
+        `,
+        prisma.customers.count({ where }),
+      ]);
+    } else {
+      // Keep existing Customer Name and Status sorting unchanged.
+      [customers, total] = await prisma.$transaction([
+        prisma.customers.findMany({
+          where,
+          select: {
+            id: true,
+            customer_code: true,
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+            zip: true,
+            phone: true,
+            status: true,
+            created_at: true,
+            shipping_same_as_main: true,
+            shipping_address: true,
+            shipping_city: true,
+            shipping_state: true,
+            shipping_zip: true,
+          },
+          orderBy: [
+            { [sortFields[sortField]]: sortDirection },
+            { id: "asc" },
+          ],
+          skip,
+          take: pageSize,
+        }),
+        prisma.customers.count({ where }),
+      ]);
+    }
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
